@@ -1,0 +1,97 @@
+{
+  "corpus": "testdata/corpus",
+  "classes": [
+    {
+      "class": "certificate",
+      "expected": 4,
+      "found": 4,
+      "tp": 2,
+      "fp": 1,
+      "fn": 2,
+      "precision": 0.6666666666666666,
+      "recall": 0.5,
+      "f1": 0.5714285714285715
+    },
+    {
+      "class": "ssh_config",
+      "expected": 1,
+      "found": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 1,
+      "precision": 1,
+      "recall": 0,
+      "f1": 0
+    },
+    {
+      "class": "tls_config",
+      "expected": 1,
+      "found": 2,
+      "tp": 1,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.5,
+      "recall": 1,
+      "f1": 0.6666666666666666
+    }
+  ],
+  "totals": {
+    "expected": 6,
+    "found": 6,
+    "tp": 3,
+    "fp": 2,
+    "fn": 3,
+    "precision": 0.6,
+    "recall": 0.5,
+    "f1": 0.5454545454545454
+  },
+  "false_positives": [
+    {
+      "class": "certificate",
+      "path": "negatives/fake.pem",
+      "detail": "under negatives/ (neg-fake)"
+    },
+    {
+      "class": "tls_config",
+      "path": "configs/nginx/rogue.conf",
+      "detail": "undeclared (class, path, alias)"
+    }
+  ],
+  "false_negatives": [
+    {
+      "id": "cert-missing",
+      "class": "certificate",
+      "path": "certs/missing.pem"
+    },
+    {
+      "id": "cert-weak",
+      "class": "certificate",
+      "path": "certs/weak.pem",
+      "mismatches": [
+        {
+          "key": "key_size",
+          "expected": "1024",
+          "got": "2048"
+        },
+        {
+          "key": "self_signed",
+          "expected": "true",
+          "got": "false"
+        }
+      ]
+    },
+    {
+      "id": "sshd-legacy",
+      "class": "ssh_config",
+      "path": "configs/ssh/sshd_config"
+    }
+  ],
+  "gate": {
+    "strict": false,
+    "pass": false,
+    "precision_violations": [
+      "certificate precision 0.667 \u003c 0.95",
+      "tls_config precision 0.500 \u003c 0.95"
+    ]
+  }
+}

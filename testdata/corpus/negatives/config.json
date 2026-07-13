@@ -1,0 +1,11 @@
+{
+  "service": "billing-api",
+  "environment": "staging",
+  "tls": {
+    "enabled": true,
+    "certificate": "dGhpcy1pcy1ub3QtYS1jZXJ0aWZpY2F0ZS1qdXN0LW1hcmtldGluZy1jb3B5",
+    "privateKey": "dGhpcy1pcy1ub3QtYS1wcml2YXRlLWtleS1vbmx5LXBsYWNlaG9sZGVyLWJ5dGVz",
+    "minVersion": "TLS1.2"
+  },
+  "notes": "certificate and privateKey are placeholders, not real PEM/DER"
+}

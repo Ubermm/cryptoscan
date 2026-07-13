@@ -1,0 +1,23 @@
+# Modern system-wide OpenSSL config (openssl.cnf style).
+# Enforces TLS 1.2 floor and SECLEVEL 2 via the default system policy.
+
+openssl_conf = default_conf
+
+[ default_conf ]
+ssl_conf = ssl_sect
+
+[ ssl_sect ]
+system_default = system_default_sect
+
+[ system_default_sect ]
+MinProtocol = TLSv1.2
+CipherString = DEFAULT@SECLEVEL=2
+
+[ req ]
+default_bits        = 2048
+distinguished_name  = req_dn
+prompt              = no
+
+[ req_dn ]
+CN = example.com
+O  = Example Org

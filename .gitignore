@@ -1,0 +1,32 @@
+# Binaries
+/cryptoscan
+/cryptoscan.exe
+cmd/cryptoscan/cryptoscan
+cmd/cryptoscan/cryptoscan.exe
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Build / distribution output
+/dist/
+/bin/
+/build/
+
+# Test & coverage artifacts
+*.test
+*.out
+coverage.txt
+coverage.html
+cover.out
+profile.out
+
+# Go workspace
+go.work
+go.work.sum
+
+# Editor / OS cruft
+.idea/
+.vscode/
+*.swp
+.DS_Store

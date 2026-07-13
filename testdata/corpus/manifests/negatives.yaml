@@ -1,0 +1,55 @@
+# cryptoscan corpus manifest fragment -- negative (false-positive-resistance)
+# fixtures. DESIGN.md section 4: the scanner must emit ZERO findings of any
+# class for every path listed here. The eval harness (section 3) treats any
+# finding under negatives/ as a false positive.
+
+version: 1
+negatives:
+  - id: neg-fake-cert-pem
+    path: negatives/fake-cert.pem
+    note: >-
+      Well-formed PEM armor (BEGIN/END CERTIFICATE, 64-char base64 wrapping)
+      whose body is base64 of lorem ipsum text -- decodes cleanly but is not
+      valid DER, so no Certificate node may be created.
+
+  - id: neg-truncated-pem
+    path: negatives/truncated.pem
+    note: >-
+      BEGIN CERTIFICATE header plus roughly half the base64 body and no END
+      footer. Incomplete PEM block; parser must not panic or emit a finding.
+
+  - id: neg-plain-base64-blob
+    path: negatives/blob.b64
+    note: >-
+      ~2KB of headerless base64 (deterministic source bytes). Looks like key
+      material but has no PEM armor and is not a valid key/cert encoding.
+
+  - id: neg-source-key-loader
+    path: negatives/key_loader.py
+    note: >-
+      Python source with comments/strings mentioning RSA-2048, "BEGIN PRIVATE
+      KEY", cipher names, and a variable holding fake base64. All decoy text.
+
+  - id: neg-readme-prose
+    path: negatives/README.md
+    note: >-
+      Markdown runbook discussing certificate rotation, TLS 1.0 deprecation,
+      and cipher-suite names in prose only. No parseable assets.
+
+  - id: neg-disabled-nginx-conf
+    path: negatives/disabled-nginx.conf
+    note: >-
+      nginx-looking vhost with every ssl_* directive commented out. No active
+      TLS directive, so zero tls_config findings expected.
+
+  - id: neg-config-json
+    path: negatives/config.json
+    note: >-
+      JSON with fields named "certificate" and "privateKey" holding fake
+      base64 placeholders (not PEM/DER). Field names must not trigger findings.
+
+  - id: neg-bogus-der
+    path: negatives/notreallyder.der
+    note: >-
+      Binary file with a .der extension and a tempting 0x30 0x82 SEQUENCE-like
+      prefix followed by deterministic junk bytes; not valid DER.

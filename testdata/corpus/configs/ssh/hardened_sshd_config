@@ -1,0 +1,26 @@
+# Hardened sshd_config: explicit modern KexAlgorithms (incl. PQ hybrid),
+# AEAD Ciphers, ETM MACs. HostKeys restricted to ed25519 + rsa.
+
+Port 22
+AddressFamily inet
+ListenAddress 0.0.0.0
+
+HostKey /etc/ssh/ssh_host_ed25519_key
+HostKey /etc/ssh/ssh_host_rsa_key
+
+KexAlgorithms sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
+MACs hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com
+
+PermitRootLogin no
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+AuthenticationMethods publickey
+
+LoginGraceTime 30
+MaxAuthTries 3
+X11Forwarding no
+AllowAgentForwarding no
+
+Subsystem sftp internal-sftp

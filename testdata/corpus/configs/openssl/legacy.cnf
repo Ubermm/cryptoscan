@@ -1,0 +1,21 @@
+# Legacy system-wide OpenSSL config: permissive protocol floor (TLS 1.0)
+# and a low security level allowing old ciphers.
+
+openssl_conf = default_conf
+
+[ default_conf ]
+ssl_conf = ssl_sect
+
+[ ssl_sect ]
+system_default = system_default_sect
+
+[ system_default_sect ]
+MinProtocol = TLSv1
+CipherString = DEFAULT:@SECLEVEL=0
+
+[ ca ]
+default_ca = CA_default
+
+[ CA_default ]
+default_md = sha256
+default_days = 365

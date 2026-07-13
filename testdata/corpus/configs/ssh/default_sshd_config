@@ -1,0 +1,28 @@
+# Default-ish sshd_config: HostKey lines present, no explicit KexAlgorithms/
+# Ciphers/MACs (server would fall back to built-in defaults). Only
+# host_key_types and host_key_refs are declared for this file.
+
+Include /etc/ssh/sshd_config.d/*.conf
+
+Port 22
+#AddressFamily any
+ListenAddress 0.0.0.0
+
+HostKey /etc/ssh/ssh_host_rsa_key
+HostKey /etc/ssh/ssh_host_ecdsa_key
+HostKey /etc/ssh/ssh_host_ed25519_key
+
+SyslogFacility AUTH
+LogLevel INFO
+
+PermitRootLogin prohibit-password
+PubkeyAuthentication yes
+PasswordAuthentication no
+ChallengeResponseAuthentication no
+UsePAM yes
+
+X11Forwarding no
+PrintMotd no
+AcceptEnv LANG LC_*
+
+Subsystem sftp /usr/lib/openssh/sftp-server

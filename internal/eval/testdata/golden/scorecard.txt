@@ -1,0 +1,23 @@
+cryptoscan eval scorecard
+corpus: testdata/corpus
+
+CLASS        EXPECTED  FOUND  TP  FP  FN  PRECISION  RECALL  F1
+certificate  4         4      2   1   2   0.667      0.500   0.571
+ssh_config   1         0      0   0   1   1.000      0.000   0.000
+tls_config   1         2      1   1   0   0.500      1.000   0.667
+TOTAL        6         6      3   2   3   0.600      0.500   0.545
+
+GATE: FAIL (precision: certificate precision 0.667 < 0.95; tls_config precision 0.500 < 0.95)
+
+False positives:
+  certificate  negatives/fake.pem  under negatives/ (neg-fake)
+  tls_config  configs/nginx/rogue.conf  undeclared (class, path, alias)
+
+Field mismatches (false negatives):
+  cert-weak (certificate)  certs/weak.pem
+      key_size: expected 1024, got 2048
+      self_signed: expected true, got false
+
+Not found (false negatives):
+  cert-missing (certificate)  certs/missing.pem
+  sshd-legacy (ssh_config)  configs/ssh/sshd_config

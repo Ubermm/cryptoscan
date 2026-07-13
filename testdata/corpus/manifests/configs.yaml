@@ -1,0 +1,206 @@
+# cryptoscan corpus manifest fragment -- server config fixtures.
+# Schema: DESIGN.md section 2 (version 1). Merged with the other fragments by
+# internal/corpus. Every asset id here is unique across ALL fragments.
+#
+# ============================================================================
+# CONVENTIONS documented for the scanner author (implement resolution to match)
+# ============================================================================
+#
+# Protocol token naming (all config classes use these spellings):
+#   SSLv3, TLSv1 (== TLS 1.0), TLSv1.1, TLSv1.2, TLSv1.3
+#
+# tls_config expect keys:
+#   protocols        - exact set of ENABLED protocol versions (resolved, see
+#                      per-class rules below)
+#   ciphers_contains - subset match against the parsed cipher list
+#   cert_refs        - exact set of CERTIFICATE-file path references, written
+#                      EXACTLY as they appear in the config. This covers
+#                      certificate directives only (nginx ssl_certificate,
+#                      Apache SSLCertificateFile, HAProxy `ssl crt`). Private
+#                      key path directives (ssl_certificate_key /
+#                      SSLCertificateKeyFile) are present in the fixtures for
+#                      realism but are NOT asserted in cert_refs.
+#   min_protocol     - openssl.cnf MinProtocol scalar (exact)
+#   cipher_string    - openssl.cnf CipherString scalar (exact)
+#
+# Apache SSLProtocol resolution (Apache 2.4 semantics):
+#   Token `all` == {SSLv3, TLSv1, TLSv1.1, TLSv1.2, TLSv1.3}. A leading `-all`
+#   clears the set; `+X` adds, `-X` removes, applied left to right.
+#     "all -SSLv3"          -> {TLSv1, TLSv1.1, TLSv1.2, TLSv1.3}
+#     "-all +TLSv1.2 +TLSv1.3" -> {TLSv1.2, TLSv1.3}
+#     "-all +TLSv1.2"       -> {TLSv1.2}
+#
+# HAProxy protocol resolution:
+#   Base enabled range = {TLSv1, TLSv1.1, TLSv1.2, TLSv1.3} (SSLv3 is off by
+#   default in modern builds). ssl-default-bind-options `no-tlsv10`/`no-tlsv11`
+#   /`no-tlsv12`/`no-tlsv13` remove the corresponding version; `no-sslv3` is a
+#   no-op against this base. (No ssl-min-ver is used in these fixtures.)
+#     "no-sslv3 no-tlsv10 no-tlsv11" -> {TLSv1.2, TLSv1.3}
+#     (no options)                   -> {TLSv1, TLSv1.1, TLSv1.2, TLSv1.3}
+#
+# nginx multi-block files: protocols is the UNION across all server blocks in
+#   the file (DESIGN keys expectations per file). Per-block detail is noted in
+#   the source file comments.
+
+version: 1
+assets:
+  # ---- nginx -------------------------------------------------------------
+  - id: nginx-legacy
+    class: tls_config
+    path: configs/nginx/legacy.conf
+    expect:
+      protocols: [TLSv1, TLSv1.1, TLSv1.2]
+      ciphers_contains: ["RC4-SHA", "DES-CBC3-SHA"]
+      cert_refs: ["../../certs/rsa-2048-selfsigned.pem"]
+
+  - id: nginx-modern
+    class: tls_config
+    path: configs/nginx/modern.conf
+    expect:
+      protocols: [TLSv1.2, TLSv1.3]
+      ciphers_contains: ["ECDHE-ECDSA-AES256-GCM-SHA384"]
+      cert_refs: ["../../certs/ecdsa-p256.pem"]
+
+  # Multiple server blocks; protocols is the UNION (block A: TLSv1.2/1.3,
+  # block B: TLSv1/1.1/1.2, block C: no TLS).
+  - id: nginx-multi-server
+    class: tls_config
+    path: configs/nginx/multi-server.conf
+    expect:
+      protocols: [TLSv1, TLSv1.1, TLSv1.2, TLSv1.3]
+      ciphers_contains: ["AES128-SHA"]
+      cert_refs: ["../../certs/rsa-2048-selfsigned.pem"]
+
+  # Splits TLS config across an include; ssl_certificate lives here,
+  # protocols/ciphers live in the included ssl-params.conf (own asset below).
+  - id: nginx-with-include
+    class: tls_config
+    path: configs/nginx/with-include.conf
+    expect:
+      cert_refs: ["../../certs/leaf-chain.pem"]
+
+  - id: nginx-ssl-params-include
+    class: tls_config
+    path: configs/nginx/ssl-params.conf
+    expect:
+      protocols: [TLSv1.2, TLSv1.3]
+      ciphers_contains: ["ECDHE-ECDSA-AES256-GCM-SHA384"]
+
+  # ---- apache ------------------------------------------------------------
+  # "all -SSLv3" resolves to TLSv1..TLSv1.3 (see convention above).
+  - id: apache-legacy
+    class: tls_config
+    path: configs/apache/legacy.conf
+    expect:
+      protocols: [TLSv1, TLSv1.1, TLSv1.2, TLSv1.3]
+      ciphers_contains: ["RC4-SHA", "DES-CBC3-SHA"]
+      cert_refs: ["../../certs/rsa-2048-selfsigned.pem"]
+
+  - id: apache-modern
+    class: tls_config
+    path: configs/apache/modern.conf
+    expect:
+      protocols: [TLSv1.2, TLSv1.3]
+      ciphers_contains: ["ECDHE-ECDSA-AES256-GCM-SHA384"]
+      cert_refs: ["../../certs/ecdsa-p256.pem"]
+
+  # VirtualHost-heavy; single TLS vhost with "-all +TLSv1.2".
+  - id: apache-vhosts
+    class: tls_config
+    path: configs/apache/vhosts.conf
+    expect:
+      protocols: [TLSv1.2]
+      ciphers_contains: ["ECDHE-RSA-AES128-GCM-SHA256"]
+      cert_refs: ["../../certs/leaf-chain.pem"]
+
+  # ---- sshd_config (class ssh_config) ------------------------------------
+  # ssh-specific expect keys (extend the DESIGN schema, snake_case):
+  #   host_key_types - exact set, derived from HostKey filenames
+  #                    (ssh_host_<type>_key -> <type>)
+  #   host_key_refs  - exact set of HostKey paths, written as in the file
+  #   kex_algorithms - exact set; omitted when the file has no KexAlgorithms
+  #   ciphers        - exact set; omitted when the file has no Ciphers
+  #   macs           - exact set; omitted when the file has no MACs
+  - id: sshd-default
+    class: ssh_config
+    path: configs/ssh/default_sshd_config
+    expect:
+      host_key_types: [rsa, ecdsa, ed25519]
+      host_key_refs:
+        - /etc/ssh/ssh_host_rsa_key
+        - /etc/ssh/ssh_host_ecdsa_key
+        - /etc/ssh/ssh_host_ed25519_key
+
+  - id: sshd-hardened
+    class: ssh_config
+    path: configs/ssh/hardened_sshd_config
+    expect:
+      host_key_types: [ed25519, rsa]
+      host_key_refs:
+        - /etc/ssh/ssh_host_ed25519_key
+        - /etc/ssh/ssh_host_rsa_key
+      kex_algorithms:
+        - sntrup761x25519-sha512@openssh.com
+        - curve25519-sha256
+        - curve25519-sha256@libssh.org
+      ciphers:
+        - chacha20-poly1305@openssh.com
+        - aes256-gcm@openssh.com
+        - aes128-gcm@openssh.com
+      macs:
+        - hmac-sha2-256-etm@openssh.com
+        - hmac-sha2-512-etm@openssh.com
+
+  - id: sshd-legacy
+    class: ssh_config
+    path: configs/ssh/legacy_sshd_config
+    expect:
+      host_key_types: [rsa, dsa]
+      host_key_refs:
+        - /etc/ssh/ssh_host_rsa_key
+        - /etc/ssh/ssh_host_dsa_key
+      kex_algorithms:
+        - diffie-hellman-group1-sha1
+        - diffie-hellman-group14-sha1
+        - diffie-hellman-group-exchange-sha1
+      ciphers:
+        - 3des-cbc
+        - aes128-cbc
+        - aes256-cbc
+        - aes128-ctr
+      macs:
+        - hmac-sha1
+        - hmac-md5
+        - hmac-sha2-256
+
+  # ---- openssl.cnf -------------------------------------------------------
+  - id: openssl-modern
+    class: tls_config
+    path: configs/openssl/modern.cnf
+    expect:
+      min_protocol: TLSv1.2
+      cipher_string: DEFAULT@SECLEVEL=2
+
+  - id: openssl-legacy
+    class: tls_config
+    path: configs/openssl/legacy.cnf
+    expect:
+      min_protocol: TLSv1
+      cipher_string: "DEFAULT:@SECLEVEL=0"
+
+  # ---- haproxy -----------------------------------------------------------
+  - id: haproxy-modern
+    class: tls_config
+    path: configs/haproxy/modern.cfg
+    expect:
+      protocols: [TLSv1.2, TLSv1.3]
+      ciphers_contains: ["ECDHE-ECDSA-AES256-GCM-SHA384"]
+      cert_refs: ["../../certs/leaf-chain.pem"]
+
+  - id: haproxy-legacy
+    class: tls_config
+    path: configs/haproxy/legacy.cfg
+    expect:
+      protocols: [TLSv1, TLSv1.1, TLSv1.2, TLSv1.3]
+      ciphers_contains: ["DES-CBC3-SHA"]
+      cert_refs: ["../../certs/rsa-2048-selfsigned.pem"]

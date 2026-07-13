@@ -1,0 +1,20 @@
+# Legacy/weak sshd_config: SHA-1 group1 KEX, CBC and 3DES ciphers,
+# truncated/legacy MACs. Present for weak-crypto detection.
+
+Port 22
+ListenAddress 0.0.0.0
+
+HostKey /etc/ssh/ssh_host_rsa_key
+HostKey /etc/ssh/ssh_host_dsa_key
+
+KexAlgorithms diffie-hellman-group1-sha1,diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1
+Ciphers 3des-cbc,aes128-cbc,aes256-cbc,aes128-ctr
+MACs hmac-sha1,hmac-md5,hmac-sha2-256
+
+PermitRootLogin yes
+PubkeyAuthentication yes
+PasswordAuthentication yes
+UsePAM yes
+
+X11Forwarding yes
+Subsystem sftp /usr/lib/openssh/sftp-server
