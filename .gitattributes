@@ -1,0 +1,12 @@
+# Normalize all text to LF in the repo and on checkout.
+# Fixture bytes must be identical on every platform: the corpus manifests
+# declare SPKI hashes computed from the exact file contents.
+* text=auto eol=lf
+
+# Binary fixtures — never touch.
+*.der binary
+*.p12 binary
+*.jks binary
+
+# Windows-specific files that genuinely want CRLF (none yet, placeholder):
+# *.bat text eol=crlf
