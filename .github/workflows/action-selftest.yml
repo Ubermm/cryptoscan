@@ -35,24 +35,25 @@ jobs:
       - name: Sanity — version
         run: cryptoscan version
 
-      # Step (c): emit the CBOM + evaluate policy, capturing the exit code
-      # without aborting the job (mirrors action.yml's scan step).
-      - name: Scan corpus (emit CBOM, evaluate policy)
+      # Step (c): ONE scan emits BOTH the CBOM and the Markdown report and evaluates
+      # policy, capturing the exit code without aborting the job (mirrors action.yml).
+      - name: Scan corpus (emit CBOM + report, evaluate policy)
         id: scan
         run: |
           set +e
           cryptoscan fs testdata/corpus \
-            --format cbom --output "$RUNNER_TEMP/cbom.json" \
+            --emit cbom="$RUNNER_TEMP/cbom.json" \
+            --emit report="$RUNNER_TEMP/report.md" \
             --fail-on sha1,rsa1024,tls10
           code=$?
           set -e
           echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "scan exited $code"
 
-      # Step (d): auditor report → job summary.
+      # Step (d): the report produced by the single scan → job summary (no re-scan).
       - name: Job summary (auditor report)
         if: always()
-        run: cryptoscan fs testdata/corpus --format report >> "$GITHUB_STEP_SUMMARY"
+        run: cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
 
       # Step (e): upload the CBOM artifact.
       - name: Upload CBOM artifact
@@ -81,13 +82,24 @@ jobs:
           set -euo pipefail
           python3 -c "import json,sys; json.load(open(sys.argv[1])); print('CBOM is valid JSON')" "$RUNNER_TEMP/cbom.json"
 
-      # A clean directory (no crypto assets) must NOT breach → exit 0.
+      # The SINGLE scan must have produced the Markdown report too — proving one
+      # scan fed both outputs.
+      - name: Assert the report was emitted by the same scan
+        run: |
+          set -euo pipefail
+          test -s "$RUNNER_TEMP/report.md"
+          grep -q "# cryptoscan cryptographic estate report" "$RUNNER_TEMP/report.md"
+          echo "OK: the single scan emitted both the CBOM and the Markdown report."
+
+      # A clean directory (no crypto assets) must NOT breach → exit 0. Mirrors the
+      # single-scan emit flow.
       - name: Assert a clean directory exits 0
         run: |
           set +e
           mkdir -p "$RUNNER_TEMP/clean"
           cryptoscan fs "$RUNNER_TEMP/clean" \
-            --format cbom --output "$RUNNER_TEMP/clean.cbom.json" \
+            --emit cbom="$RUNNER_TEMP/clean.cbom.json" \
+            --emit report="$RUNNER_TEMP/clean.report.md" \
             --fail-on sha1,rsa1024,tls10
           code=$?
           set -e

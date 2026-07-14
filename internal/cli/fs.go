@@ -26,6 +26,7 @@ import (
 func newFsCmd() *cobra.Command {
 	var quiet bool
 	var format, output string
+	var emit []string
 	var failOn []string
 	cmd := &cobra.Command{
 		Use:   "fs <path>",
@@ -38,6 +39,13 @@ func newFsCmd() *cobra.Command {
 			"emits a CycloneDX 1.6 CBOM (JSON); --format report / report-json emit the " +
 			"auditor report as Markdown / JSON. --output <file> writes there instead of " +
 			"stdout. --quiet shapes only the table summary.\n\n" +
+			"Multiple outputs from ONE scan: --emit <format>=<dest> is repeatable and " +
+			"produces every requested output from a single walk of <path> (the graph is " +
+			"built and scored once). <dest> is a file path, or - for stdout. Example: " +
+			"--emit cbom=cbom.json --emit report=report.md. At most one --emit may target " +
+			"stdout (-), no format may be emitted twice, and --emit is mutually exclusive " +
+			"with --format/--output. --quiet is accepted with --emit only when the sole " +
+			"emit is table.\n\n" +
 			failOnLongHelp +
 			"Limits: each regular file larger than 8 MiB is skipped without being " +
 			"read; directories, symlinks, and other non-regular files are not " +
@@ -48,32 +56,37 @@ func newFsCmd() *cobra.Command {
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// The command layer supplies the REAL clock once; the emitters and
-			// pqc.Score consume it (they never call time.Now themselves).
-			return runFs(cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0], quiet, format, output, failOn, time.Now())
+			// pqc.Score consume it (they never call time.Now themselves). The
+			// Changed flags let runFs reject --emit combined with --format/--output.
+			return runFs(cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0], quiet, format, output, emit, failOn,
+				cmd.Flags().Changed("format"), cmd.Flags().Changed("output"), time.Now())
 		},
 	}
 	f := cmd.Flags()
 	f.BoolVar(&quiet, "quiet", false, "print per-class counts only (table format only)")
 	f.StringVar(&format, "format", formatTable, scanFormatHelp)
 	f.StringVar(&output, "output", "", "write to this file instead of stdout")
+	f.StringArrayVar(&emit, "emit", nil, emitFlagHelp)
 	f.StringSliceVar(&failOn, "fail-on", nil, failOnFlagHelp)
 	return cmd
 }
 
 // runFs scans root with both Phase 1 scanners into one graph, resolves the
-// references join, and writes the requested projection to stdout or --output.
-// For --format table it prints the interim human summary (unchanged); for cbom/
-// report/report-json it computes the PQC exposure as of `now` and emits via the
-// standards-native / auditor libraries. It returns an error (mapped to exit 1 by
-// Execute) on a bad --format, a --quiet+machine-format combination, a scan
-// failure, or an output-write failure; individual unreadable/malformed files are
-// skipped by the scanners themselves. It never panics.
-func runFs(stdout, stderr io.Writer, root string, quiet bool, format, output string, failOn []string, now time.Time) error {
-	format, err := normalizeScanFormat(format)
+// references join, and writes the requested projection(s) to stdout and/or files.
+// Output is selected two mutually exclusive ways: the legacy single --format
+// (+ --output) target, or one-or-more --emit format=dest targets that all draw
+// from the SAME single scan. For each target, --format table prints the interim
+// human summary (unchanged); cbom/report/report-json emit via the standards-native
+// / auditor libraries against the graph scored once at `now`. It returns an error
+// (mapped to exit 1 by Execute) on a bad --format/--emit spec, a --quiet+machine
+// combination, --emit combined with --format/--output, a scan failure, or an
+// output-write failure; individual unreadable/malformed files are skipped by the
+// scanners themselves. It never panics.
+func runFs(stdout, stderr io.Writer, root string, quiet bool, format, output string, emit, failOn []string, formatSet, outputSet bool, now time.Time) error {
+	// Resolve the output target set FIRST so a bad --format/--emit fails fast as a
+	// usage error (exit 1) before any scanning work.
+	targets, err := resolveOutputTargets(emit, format, output, quiet, formatSet, outputSet)
 	if err != nil {
-		return err
-	}
-	if err := checkQuietFormat(format, quiet); err != nil {
 		return err
 	}
 	// Parse the policy thresholds BEFORE scanning so an invalid --fail-on token
@@ -89,20 +102,20 @@ func runFs(stdout, stderr io.Writer, root string, quiet bool, format, output str
 	}
 
 	// Score once when either a machine format or the policy gate needs it, and
-	// share that single Report between the emitter and the gate.
+	// share that single Report across every emitter and the gate.
 	var exposure pqc.Report
-	if format != formatTable || len(thresholds) > 0 {
+	if needScore(targets, len(thresholds) > 0) {
 		exposure = pqc.Score(g, now)
 	}
 
-	// Emit the requested output FIRST — the report the user asked for is always
+	// Emit EVERY requested output FIRST — the reports the user asked for are always
 	// written in full before the gate can fail.
-	if err := writeToDest(stdout, output, func(w io.Writer) error {
-		if format == formatTable {
+	if err := writeEmitTargets(stdout, targets, func(w io.Writer, f string) error {
+		if f == formatTable {
 			renderFsTable(w, g, findings, resolved, quiet)
 			return nil
 		}
-		return emitGraphOutput(w, g, exposure, format, now)
+		return emitGraphOutput(w, g, exposure, f, now)
 	}); err != nil {
 		return err
 	}

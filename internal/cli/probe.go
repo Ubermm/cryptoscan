@@ -56,6 +56,11 @@ func newProbeCmd() *cobra.Command {
 			"prober would simply record a non-matching-service error.\n\n" +
 			"No trust validation is performed: the presented TLS chain and the advertised\n" +
 			"SSH algorithms are RECORDED, not judged. Nothing is authenticated.\n\n" +
+			"Output: --format table (default) / cbom / report / report-json with --output\n" +
+			"<file> select a single projection, exactly as `fs`. For multiple outputs from\n" +
+			"ONE probe, --emit <format>=<dest> is repeatable (dest: a file path, or - for\n" +
+			"stdout); at most one --emit may target stdout, no format twice, and --emit is\n" +
+			"mutually exclusive with --format/--output.\n\n" +
 			failOnLongHelp +
 			"Exit status is 0 when at least one target was probed, 1 on a usage error or\n" +
 			"when no target could be probed at all, and 4 when a --fail-on policy threshold\n" +
@@ -65,7 +70,10 @@ func newProbeCmd() *cobra.Command {
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// The command layer supplies the REAL clock once; the emitters and
-			// pqc.Score consume it (they never call time.Now themselves).
+			// pqc.Score consume it (they never call time.Now themselves). The
+			// Changed flags let runProbe reject --emit combined with --format/--output.
+			opts.formatSet = cmd.Flags().Changed("format")
+			opts.outputSet = cmd.Flags().Changed("output")
 			return runProbe(cmd.OutOrStdout(), cmd.ErrOrStderr(), args, opts, time.Now())
 		},
 	}
@@ -78,6 +86,7 @@ func newProbeCmd() *cobra.Command {
 	f.BoolVar(&opts.verbose, "verbose", false, "list every per-target probe error in full")
 	f.StringVar(&opts.format, "format", formatTable, scanFormatHelp)
 	f.StringVar(&opts.output, "output", "", "write to this file instead of stdout")
+	f.StringArrayVar(&opts.emit, "emit", nil, emitFlagHelp)
 	f.StringSliceVar(&opts.failOn, "fail-on", nil, failOnFlagHelp)
 	return cmd
 }
@@ -92,7 +101,10 @@ type probeCmdOptions struct {
 	verbose     bool
 	format      string
 	output      string
+	emit        []string
 	failOn      []string
+	formatSet   bool
+	outputSet   bool
 }
 
 // runProbe gathers the targets, runs every registered prober against them into
@@ -102,11 +114,10 @@ type probeCmdOptions struct {
 // (every prober failed against every target). A target reachable by one prober
 // but not the other is a success; the non-matching prober's error is expected.
 func runProbe(stdout, stderr io.Writer, args []string, opts probeCmdOptions, now time.Time) error {
-	format, err := normalizeScanFormat(opts.format)
+	// Resolve the output target set FIRST so a bad --format/--emit fails fast as a
+	// usage error (exit 1) before touching the network.
+	targets, err := resolveOutputTargets(opts.emit, opts.format, opts.output, opts.quiet, opts.formatSet, opts.outputSet)
 	if err != nil {
-		return err
-	}
-	if err := checkQuietFormat(format, opts.quiet); err != nil {
 		return err
 	}
 	// Parse the policy thresholds BEFORE probing so an invalid --fail-on token
@@ -116,16 +127,16 @@ func runProbe(stdout, stderr io.Writer, args []string, opts probeCmdOptions, now
 		return err
 	}
 
-	targets, err := gatherTargets(args, opts.targetsFile)
+	probeTargets, err := gatherTargets(args, opts.targetsFile)
 	if err != nil {
 		return err
 	}
-	if len(targets) == 0 {
+	if len(probeTargets) == 0 {
 		return fmt.Errorf("no targets: pass one or more host:port arguments and/or --targets-file")
 	}
 
 	g := graph.New()
-	res, err := probe.Run(context.Background(), targets, g, probe.RunOptions{
+	res, err := probe.Run(context.Background(), probeTargets, g, probe.RunOptions{
 		Timeout:     opts.timeout,
 		Concurrency: opts.concurrency,
 		RatePerSec:  opts.rate,
@@ -134,8 +145,27 @@ func runProbe(stdout, stderr io.Writer, args []string, opts probeCmdOptions, now
 		return fmt.Errorf("probe run: %w", err)
 	}
 
-	if format == formatTable {
-		if err := writeToDest(stdout, opts.output, func(w io.Writer) error {
+	// Exit 1 only when nothing at all could be probed. With every prober run
+	// against every target, zero findings means every (target, prober) failed.
+	noProbeErr := fmt.Errorf("no target could be probed (%d probe error(s) across %d target(s))", len(res.Errors), len(probeTargets))
+	// The legacy single-table path prints its (empty) summary THEN reports the
+	// no-target error, preserving prior behaviour. Any machine format — and every
+	// --emit run — instead surfaces the error before emitting, since an empty
+	// BOM/report is not a useful artifact.
+	legacyTablePrint := len(opts.emit) == 0 && len(targets) == 1 && targets[0].format == formatTable
+	if len(res.Findings) == 0 && !legacyTablePrint {
+		return noProbeErr
+	}
+
+	// Score once when either a machine format or the policy gate needs it, and
+	// share that single Report across every emitter and the gate.
+	var exposure pqc.Report
+	if needScore(targets, len(thresholds) > 0) {
+		exposure = pqc.Score(g, now)
+	}
+
+	if err := writeEmitTargets(stdout, targets, func(w io.Writer, f string) error {
+		if f == formatTable {
 			writeClassCounts(w, res.Findings)
 			if !opts.quiet {
 				writeProbeFindingsTable(w, res.Findings)
@@ -144,35 +174,17 @@ func runProbe(stdout, stderr io.Writer, args []string, opts probeCmdOptions, now
 			if !opts.quiet {
 				writeProbeErrors(w, res.Errors, opts.verbose)
 			}
-			// Exit 1 only when nothing at all could be probed. With every prober
-			// run against every target, zero findings means every (target,
-			// prober) failed.
 			if len(res.Findings) == 0 {
-				return fmt.Errorf("no target could be probed (%d probe error(s) across %d target(s))", len(res.Errors), len(targets))
+				return noProbeErr
 			}
 			return nil
-		}); err != nil {
-			return err
 		}
-		// Output written; gate after it (a breach prints to stderr, exit 4).
-		if len(thresholds) == 0 {
-			return nil
-		}
-		return gateOnPolicy(stderr, g, pqc.Score(g, now), thresholds)
-	}
-
-	// Machine formats: a probe that reached nothing at all is an error, not an
-	// empty BOM/report — surface it before emitting anything.
-	if len(res.Findings) == 0 {
-		return fmt.Errorf("no target could be probed (%d probe error(s) across %d target(s))", len(res.Errors), len(targets))
-	}
-	// Score once and share it between the emitter and the policy gate.
-	exposure := pqc.Score(g, now)
-	if err := writeToDest(stdout, opts.output, func(w io.Writer) error {
-		return emitGraphOutput(w, g, exposure, format, now)
+		return emitGraphOutput(w, g, exposure, f, now)
 	}); err != nil {
 		return err
 	}
+
+	// Output written; gate after it (a breach prints to stderr, exit 4).
 	return gateOnPolicy(stderr, g, exposure, thresholds)
 }
 

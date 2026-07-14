@@ -69,20 +69,23 @@ runs:
         # setup-go puts $(go env GOPATH)/bin on PATH, so the binary is callable.
         cryptoscan version
 
-    - name: Scan (emit CBOM, evaluate policy)
+    - name: Scan (emit CBOM + report, evaluate policy)
       id: scan
       shell: bash
       run: |
-        # Capture the exit code WITHOUT aborting the job, so the CBOM artifact and
-        # job summary are still recorded before we (optionally) fail at the end.
+        # ONE scan produces BOTH outputs: the CBOM artifact and the Markdown report
+        # for the job summary. Capture the exit code WITHOUT aborting the job, so the
+        # artifact and summary are still recorded before we (optionally) fail at the end.
         set +e
         scan_path='${{ inputs.path }}'
         cbom='${{ inputs.cbom-path }}'
+        report="${RUNNER_TEMP}/cryptoscan-report.md"
         failon='${{ inputs.fail-on }}'
+        echo "report=$report" >> "$GITHUB_OUTPUT"
         if [ -n "$failon" ]; then
-          cryptoscan fs "$scan_path" --format cbom --output "$cbom" --fail-on "$failon"
+          cryptoscan fs "$scan_path" --emit cbom="$cbom" --emit report="$report" --fail-on "$failon"
         else
-          cryptoscan fs "$scan_path" --format cbom --output "$cbom"
+          cryptoscan fs "$scan_path" --emit cbom="$cbom" --emit report="$report"
         fi
         code=$?
         set -e
@@ -94,9 +97,14 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        scan_path='${{ inputs.path }}'
-        # The Markdown auditor report renders as a table in the GitHub job summary.
-        cryptoscan fs "$scan_path" --format report >> "$GITHUB_STEP_SUMMARY"
+        report='${{ steps.scan.outputs.report }}'
+        # The Markdown report was produced by the single scan above; append it to the
+        # job summary where it renders as a table (no re-scan).
+        if [ -n "$report" ] && [ -f "$report" ]; then
+          cat "$report" >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "cryptoscan: report was not produced (scan step failed before emitting)." >> "$GITHUB_STEP_SUMMARY"
+        fi
 
     - name: Upload CBOM artifact
       if: always() && inputs.upload-artifact == 'true'

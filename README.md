@@ -86,6 +86,30 @@ timestamp in each machine format is the real wall clock at scan time.
 ./cryptoscan probe example.com:443 --format report-json
 ```
 
+### Multiple outputs from one scan (`--emit`)
+
+Large repositories should be walked once. `--emit <format>=<dest>` produces
+several outputs from a **single** scan (the graph is built and PQC-scored once,
+then each requested format is written from it). It is repeatable; `<format>` is
+one of `table`, `cbom`, `report`, `report-json`; `<dest>` is a file path, or `-`
+for stdout.
+
+```sh
+# One walk of the tree → CBOM file + Markdown report file, no second scan.
+./cryptoscan fs /path/to/scan --emit cbom=estate.cbom.json --emit report=report.md
+
+# Mix a file and stdout: report to a file, the human table to the terminal.
+./cryptoscan fs /path/to/scan --emit report=report.md --emit table=-
+```
+
+Rules (each a usage error, exit 1): at most **one** `--emit` may target stdout
+(`-`) — two stdout writers would interleave; the same **format** may not be
+emitted twice; and `--emit` is **mutually exclusive** with `--format`/`--output`
+(use one selection style or the other — `--format`/`--output` remain the simple
+way to write a single output). `--quiet` is accepted with `--emit` only when the
+sole emit is `table`. `--fail-on` still composes as emit-then-gate: every emit is
+written in full, then a breach exits **4**.
+
 `cryptoscan graph <path>` dumps the raw asset graph itself (nodes + edges) for
 tooling or visualization:
 
@@ -121,10 +145,11 @@ jobs:
 
 What it does, in order (so evidence is recorded even when the gate trips):
 
-1. Runs `cryptoscan fs <path> --format cbom` and captures the exit code
-   **without** aborting the job.
-2. Appends the Markdown auditor report (`--format report`) to the job summary
-   (`always()`).
+1. Runs **one** scan — `cryptoscan fs <path> --emit cbom=<cbom-path> --emit
+   report=<tmp>` — producing the CBOM *and* the Markdown report from a single
+   walk, and captures the exit code **without** aborting the job.
+2. Appends that already-produced Markdown report to the job summary (`always()`)
+   — no re-scan.
 3. Uploads the CBOM JSON as an artifact (`always()`, when `upload-artifact` is
    `true`).
 4. **Last**, fails the job if the scan reported a breach — so the artifact and
