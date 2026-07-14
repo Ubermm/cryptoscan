@@ -19,13 +19,6 @@ func newPhaseStub(use, short string, phase int) *cobra.Command {
 	}
 }
 
-// newProbeCmd is the network scanner (Phase 2).
-func newProbeCmd() *cobra.Command {
-	cmd := newPhaseStub("probe", "Probe a network endpoint's TLS configuration", 2)
-	cmd.Use = "probe <host:port>"
-	return cmd
-}
-
 // newGraphCmd emits the cryptographic asset graph / CBOM (Phase 3).
 func newGraphCmd() *cobra.Command {
 	return newPhaseStub("graph", "Emit the cryptographic asset graph and CBOM", 3)

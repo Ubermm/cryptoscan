@@ -22,12 +22,14 @@
 // (internal/scan/certs), so a certificate seen at an endpoint and on disk
 // resolves to ONE graph node — the cross-surface entity-resolution promise.
 //
-// Connections are opened through a single shared netutil.Dialer, so the
-// connection-layer rate limit is enforced across every target and every
-// per-version handshake of a run (one target performs ~6 handshakes, which is
-// why rate limiting belongs at the connection layer, not the target layer). The
-// package never panics; an unreachable target is returned as an error and
-// probe.Run keeps the batch going.
+// Connections are opened through a shared netutil.Dialer, but pacing and timeout
+// are NOT this package's concern: the single batch driver probe.Run owns the one
+// rate limit (--rate) and stamps each target's deadline (--timeout) onto the
+// context it passes to Probe. Every dial and handshake here threads THAT context,
+// so a target's ~6 handshakes share one deadline budget — a hanging target costs
+// ~1×--timeout total, not 6× a baked per-connection timeout. The package never
+// panics; an unreachable target is returned as an error and probe.Run keeps the
+// batch going.
 package tls
 
 import (
@@ -35,7 +37,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/cryptoscan/cryptoscan/internal/graph"
 	"github.com/cryptoscan/cryptoscan/internal/probe"
@@ -64,13 +65,11 @@ var enumVersions = []struct {
 }
 
 // Prober is the TLS implementation of probe.Prober. The zero value is usable
-// (netutil defaults, default ALPN); the CLI may set Net/ALPN before the first
-// Probe. It is safe for concurrent use across targets: a single shared Dialer is
-// created once and reused, so the connection rate limit spans the whole run.
+// (default ALPN); the CLI may set ALPN before the first Probe. It is safe for
+// concurrent use across targets: a single shared Dialer is created once and
+// reused. Timeouts and rate limiting are owned by probe.Run (via the context and
+// its single limiter), not by this prober.
 type Prober struct {
-	// Net configures dialing, the per-connection timeout, and the shared
-	// connection rate limit (netutil). The zero value uses netutil defaults.
-	Net netutil.Options
 	// ALPN is the protocol list offered via the TLS ALPN extension on the
 	// primary handshake. Nil selects defaultALPN; an explicitly empty (non-nil)
 	// slice offers no ALPN. Set it before the first Probe.
@@ -86,10 +85,10 @@ func New() *Prober { return &Prober{} }
 // Scheme implements probe.Prober.
 func (p *Prober) Scheme() string { return "tls" }
 
-// dial lazily builds (once) the shared Dialer carrying the connection rate
-// limiter, so every target and handshake of a run draws on one rate budget.
+// dial lazily builds (once) the shared ctx-aware Dialer reused across every
+// target and handshake of a run.
 func (p *Prober) dial() *netutil.Dialer {
-	p.once.Do(func() { p.dialer = p.Net.NewDialer() })
+	p.once.Do(func() { p.dialer = netutil.NewDialer() })
 	return p.dialer
 }
 
@@ -141,13 +140,12 @@ func (p *Prober) observe(ctx context.Context, t probe.Target) (observation, erro
 	host := t.Host
 	dialer := p.dial()
 	alpn := p.alpn()
-	timeout := p.Net.Normalize().Timeout
 
 	var obs observation
 
 	// Primary handshake: default client config, SNI, ALPN. Distinguish an
 	// unreachable endpoint (dial failure) from a reachable non-TLS port.
-	primary := handshake(ctx, dialer, addr, host, alpn, timeout, 0, 0, nil)
+	primary := handshake(ctx, dialer, addr, host, alpn, 0, 0, nil)
 	if primary.dialErr != nil {
 		return observation{}, fmt.Errorf("tls: dial %s: %w", addr, primary.dialErr)
 	}
@@ -167,7 +165,7 @@ func (p *Prober) observe(ctx context.Context, t probe.Target) (observation, erro
 	// handshake produced no chain (e.g. the client default min-version refused
 	// a legacy-only server), capture the chain from the first version that does.
 	for _, ev := range enumVersions {
-		hs := handshake(ctx, dialer, addr, host, alpn, timeout, ev.version, ev.version, nil)
+		hs := handshake(ctx, dialer, addr, host, alpn, ev.version, ev.version, nil)
 		if hs.state == nil {
 			continue
 		}
@@ -181,7 +179,7 @@ func (p *Prober) observe(ctx context.Context, t probe.Target) (observation, erro
 
 	// Hybrid PQC probe: offer ONLY X25519MLKEM768 (TLS 1.3). A successful
 	// handshake proves the server accepts that group as the sole offer.
-	pqc := handshake(ctx, dialer, addr, host, alpn, timeout, tls.VersionTLS13, tls.VersionTLS13, []tls.CurveID{tls.X25519MLKEM768})
+	pqc := handshake(ctx, dialer, addr, host, alpn, tls.VersionTLS13, tls.VersionTLS13, []tls.CurveID{tls.X25519MLKEM768})
 	if pqc.state != nil {
 		obs.pqcHybrid = true
 	}
@@ -189,24 +187,36 @@ func (p *Prober) observe(ctx context.Context, t probe.Target) (observation, erro
 	return obs, nil
 }
 
-// finding projects the observation into the tls_endpoint finding (DESIGN.md §1).
-// protocols_supported is always a non-nil slice; peer_certs is the chain length.
-func (o observation) finding(t probe.Target) probe.Finding {
+// nodeAttrs builds the observed-attributes map stored on the Endpoint graph node
+// (DESIGN.md §1 EndpointNode TLS attrs). It carries the negotiated parameters,
+// the enumerated protocols_supported (always a non-nil slice), and the hybrid-PQC
+// flag — the same keys the Finding projects, so the node is the primary carrier
+// per principle 2. A fresh map is returned on every call so callers may mutate it
+// (e.g. finding adds peer_certs) without aliasing the node's copy.
+func (o observation) nodeAttrs() map[string]any {
 	protos := o.protocols
 	if protos == nil {
 		protos = []string{}
 	}
+	return map[string]any{
+		"negotiated_protocol":     o.negotiated,
+		"negotiated_cipher_suite": o.cipher,
+		"alpn":                    o.alpn,
+		"protocols_supported":     protos,
+		"pqc_hybrid_kex":          o.pqcHybrid,
+	}
+}
+
+// finding projects the observation into the tls_endpoint finding (DESIGN.md §1).
+// It mirrors the node attributes and adds peer_certs (the presented chain length),
+// which is a finding-level count rather than an endpoint attribute.
+func (o observation) finding(t probe.Target) probe.Finding {
+	attrs := o.nodeAttrs()
+	attrs["peer_certs"] = len(o.certDER)
 	return probe.Finding{
-		Class: probe.ClassTLSEndpoint,
-		Path:  t.Addr(),
-		Attrs: map[string]any{
-			"negotiated_protocol":     o.negotiated,
-			"negotiated_cipher_suite": o.cipher,
-			"alpn":                    o.alpn,
-			"protocols_supported":     protos,
-			"pqc_hybrid_kex":          o.pqcHybrid,
-			"peer_certs":              len(o.certDER),
-		},
+		Class:      probe.ClassTLSEndpoint,
+		Path:       t.Addr(),
+		Attrs:      attrs,
 		Provenance: []graph.Provenance{prov(t)},
 	}
 }
@@ -229,13 +239,7 @@ func populate(g *graph.Graph, t probe.Target, obs observation) error {
 	if err != nil {
 		return err
 	}
-	ep := &graph.EndpointNode{Host: t.Host, Port: t.Port, Protocols: obs.protocols}
-	if obs.cipher != "" {
-		ep.CipherSuites = []string{obs.cipher}
-	}
-	if obs.alpn != "" {
-		ep.ALPN = []string{obs.alpn}
-	}
+	ep := &graph.EndpointNode{Host: t.Host, Port: t.Port, Attrs: obs.nodeAttrs()}
 	ep.NodeID = epID
 	ep.AddProvenance(pv)
 	if _, err := g.UpsertNode(ep); err != nil {
@@ -274,21 +278,15 @@ type hsResult struct {
 // handshake dials addr through the shared Dialer and attempts a TLS handshake
 // with the given SNI, ALPN, version pins, and curve preferences, then closes the
 // connection. minV/maxV of 0 select the client defaults; curves of nil selects
-// the client defaults. It never panics; the timeout bounds both the dial (via
-// the Dialer) and the handshake (via a derived context).
-func handshake(ctx context.Context, dialer *netutil.Dialer, addr, host string, alpn []string, timeout time.Duration, minV, maxV uint16, curves []tls.CurveID) hsResult {
+// the client defaults. It never panics; ctx bounds both the dial and the
+// handshake — ctx carries the per-target deadline probe.Run set from --timeout,
+// so every handshake of a target shares that one budget.
+func handshake(ctx context.Context, dialer *netutil.Dialer, addr, host string, alpn []string, minV, maxV uint16, curves []tls.CurveID) hsResult {
 	raw, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return hsResult{dialErr: err}
 	}
 	defer func() { _ = raw.Close() }()
-
-	hctx := ctx
-	if timeout > 0 {
-		var cancel context.CancelFunc
-		hctx, cancel = context.WithTimeout(ctx, timeout)
-		defer cancel()
-	}
 
 	cfg := &tls.Config{
 		InsecureSkipVerify: true, //nolint:gosec // we RECORD the presented chain, we do not validate trust (DESIGN.md §1)
@@ -306,7 +304,7 @@ func handshake(ctx context.Context, dialer *netutil.Dialer, addr, host string, a
 	}
 
 	conn := tls.Client(raw, cfg)
-	if err := conn.HandshakeContext(hctx); err != nil {
+	if err := conn.HandshakeContext(ctx); err != nil {
 		return hsResult{hsErr: err}
 	}
 	st := conn.ConnectionState()

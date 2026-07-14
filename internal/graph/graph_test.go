@@ -297,6 +297,88 @@ func TestUpsertNodeMerge(t *testing.T) {
 	})
 }
 
+// TestUpsertEndpointAttrsMerge covers the EndpointNode Attrs merge: a key union
+// with existing-wins per key, so a TLS probe and an SSH probe of the same
+// host:port fold their distinct observations into one node without clobbering.
+func TestUpsertEndpointAttrsMerge(t *testing.T) {
+	id, err := EndpointNodeID("example.com", 443)
+	if err != nil {
+		t.Fatalf("EndpointNodeID: %v", err)
+	}
+	g := New()
+
+	first := &EndpointNode{
+		baseNode: baseNode{NodeID: id},
+		Host:     "example.com",
+		Port:     443,
+		Attrs: map[string]any{
+			"negotiated_protocol": "TLSv1.3",
+			"protocols_supported": []string{"TLSv1.2", "TLSv1.3"},
+		},
+	}
+	first.AddProvenance(Provenance{Source: SourceProbe, Location: "example.com:443", Detail: "tls handshake"})
+	if _, err := g.UpsertNode(first); err != nil {
+		t.Fatalf("first upsert: %v", err)
+	}
+
+	second := &EndpointNode{
+		baseNode: baseNode{NodeID: id},
+		Host:     "example.com",
+		Port:     443,
+		Attrs: map[string]any{
+			"negotiated_protocol": "IGNORED",             // existing wins
+			"banner":              "SSH-2.0-OpenSSH_9.6", // new key filled
+		},
+	}
+	second.AddProvenance(Provenance{Source: SourceProbe, Location: "example.com:443", Detail: "ssh KEXINIT"})
+
+	resident, err := g.UpsertNode(second)
+	if err != nil {
+		t.Fatalf("second upsert: %v", err)
+	}
+	if g.NodeCount() != 1 {
+		t.Fatalf("node count = %d, want 1 after merge", g.NodeCount())
+	}
+	ep, ok := resident.(*EndpointNode)
+	if !ok {
+		t.Fatalf("resident is %T, want *EndpointNode", resident)
+	}
+	if got := ep.Attrs["negotiated_protocol"]; got != "TLSv1.3" {
+		t.Errorf("negotiated_protocol = %v, want existing value TLSv1.3 to win", got)
+	}
+	if got := ep.Attrs["banner"]; got != "SSH-2.0-OpenSSH_9.6" {
+		t.Errorf("banner = %v, want it filled from the second upsert", got)
+	}
+	if got, _ := ep.Attrs["protocols_supported"].([]string); len(got) != 2 {
+		t.Errorf("protocols_supported = %v, want the original 2-element list preserved", got)
+	}
+	if len(ep.Provenance()) != 2 {
+		t.Errorf("provenance = %v, want 2 unioned records", ep.Provenance())
+	}
+}
+
+func TestUpsertEndpointAttrsIntoEmpty(t *testing.T) {
+	id, err := EndpointNodeID("h", 22)
+	if err != nil {
+		t.Fatalf("EndpointNodeID: %v", err)
+	}
+	g := New()
+	// First node has a nil Attrs map; the merge must lazily allocate it.
+	if _, err := g.UpsertNode(&EndpointNode{baseNode: baseNode{NodeID: id}, Host: "h", Port: 22}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	resident, err := g.UpsertNode(&EndpointNode{
+		baseNode: baseNode{NodeID: id}, Host: "h", Port: 22,
+		Attrs: map[string]any{"banner": "SSH-2.0-x"},
+	})
+	if err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	if got := resident.(*EndpointNode).Attrs["banner"]; got != "SSH-2.0-x" {
+		t.Errorf("banner = %v, want SSH-2.0-x filled into a previously nil Attrs", got)
+	}
+}
+
 // --- edge dedupe tests ---
 
 func TestAddEdge(t *testing.T) {

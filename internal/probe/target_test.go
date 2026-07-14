@@ -39,6 +39,9 @@ func TestParseTarget(t *testing.T) {
 		{name: "url-ish rejected", in: "https://example.com", wantErr: true},
 		{name: "ipv4 range rejected", in: "10.0.0.1-10.0.0.9", wantErr: true},
 		{name: "ipv4 short range rejected", in: "10.0.0.1-9", wantErr: true},
+		{name: "wildcard subdomain glob rejected", in: "*.example.com", wantErr: true},
+		{name: "wildcard octet glob rejected", in: "10.0.0.*", wantErr: true},
+		{name: "question-mark glob rejected", in: "web?.example.com:443", wantErr: true},
 		{name: "unbracketed ipv6 with trailing port is malformed", in: "2001:db8::1:port", wantErr: true},
 		{name: "bad bracketed non-ipv6", in: "[not-an-ip]", wantErr: true},
 	}

@@ -146,14 +146,24 @@ func (k *KeyNode) mergeFrom(other Node) error {
 	return nil
 }
 
-// EndpointNode identifies a network endpoint by host:port.
+// EndpointNode identifies a network endpoint by host:port (DESIGN.md §1). Beyond
+// its identity fields (Host, Port) it carries an Attrs map of observed parameters
+// recorded by a probe, keyed by the network-probe-contract attribute names:
+//
+//   - TLS: negotiated_protocol, negotiated_cipher_suite, alpn,
+//     protocols_supported, pqc_hybrid_kex
+//   - SSH: banner, host_key_algorithms, kex_algorithms, ciphers, macs
+//
+// The map keeps TLS and SSH parameters distinct instead of overloading a shared
+// set of typed fields, and it makes the node — not just the projected Finding —
+// the primary carrier of what a probe observed (principle 2). The earlier typed
+// Protocols/CipherSuites/ALPN fields are subsumed by these attribute keys and
+// have been removed to avoid two sources of truth.
 type EndpointNode struct {
 	baseNode
-	Host         string   `json:"host,omitempty"`
-	Port         int      `json:"port,omitempty"`
-	Protocols    []string `json:"protocols,omitempty"`
-	CipherSuites []string `json:"cipher_suites,omitempty"`
-	ALPN         []string `json:"alpn,omitempty"`
+	Host  string         `json:"host,omitempty"`
+	Port  int            `json:"port,omitempty"`
+	Attrs map[string]any `json:"attrs,omitempty"`
 }
 
 // Type implements Node.
@@ -166,9 +176,7 @@ func (e *EndpointNode) mergeFrom(other Node) error {
 	}
 	mergeString(&e.Host, o.Host)
 	mergeInt(&e.Port, o.Port)
-	mergeStringSet(&e.Protocols, o.Protocols)
-	mergeStringSet(&e.CipherSuites, o.CipherSuites)
-	mergeStringSet(&e.ALPN, o.ALPN)
+	mergeAttrs(&e.Attrs, o.Attrs)
 	e.AddProvenance(o.Prov...)
 	return nil
 }
@@ -339,6 +347,26 @@ func mergeStringSet(dst *[]string, src []string) {
 	for _, s := range src {
 		if !containsString(*dst, s) {
 			*dst = append(*dst, s)
+		}
+	}
+}
+
+// mergeAttrs folds src into *dst as a key union with existing-wins semantics: a
+// key already present in *dst keeps its value, and only keys missing from *dst
+// are filled from src. This mirrors the scalar merge convention (mergeString/
+// mergeInt), where the value already resident in the graph wins and an incoming
+// upsert only fills gaps — applied per attribute key so a TLS probe and an SSH
+// probe of the same host:port union their distinct keys without clobbering.
+func mergeAttrs(dst *map[string]any, src map[string]any) {
+	if len(src) == 0 {
+		return
+	}
+	if *dst == nil {
+		*dst = make(map[string]any, len(src))
+	}
+	for k, v := range src {
+		if _, ok := (*dst)[k]; !ok {
+			(*dst)[k] = v
 		}
 	}
 }

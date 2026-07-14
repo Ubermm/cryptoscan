@@ -15,14 +15,14 @@ import (
 
 	"github.com/cryptoscan/cryptoscan/internal/graph"
 	"github.com/cryptoscan/cryptoscan/internal/probe"
-	"github.com/cryptoscan/cryptoscan/internal/probe/netutil"
 	"github.com/cryptoscan/cryptoscan/internal/scan/certs"
 )
 
-// newTestProber returns a Prober with rate limiting disabled so tests run fast
-// (the default 20 conns/s would space each of a target's ~6 handshakes by 50ms).
+// newTestProber returns a ready-to-use Prober. Rate limiting and timeouts are the
+// harness's job (probe.Run), so a bare prober does no connection-layer pacing and
+// runs fast in tests.
 func newTestProber() *Prober {
-	return &Prober{Net: netutil.Options{Rate: -1}}
+	return New()
 }
 
 // target parses "host:port" into a probe.Target for driving Prober.Probe.
@@ -306,6 +306,85 @@ func TestProbeViaOrchestrator(t *testing.T) {
 	certID, _ := graph.CertNodeID(oc.DERSHA256)
 	if _, ok := g.Node(certID); !ok {
 		t.Errorf("certificate node %q missing from merged graph", certID)
+	}
+}
+
+// TestProbeHangingTargetBoundedByTimeout proves the fix for MAJOR-2: the
+// per-target timeout (--timeout / RunOptions.Timeout) bounds the WHOLE target —
+// all ~6 handshakes share one deadline budget threaded through ctx — rather than
+// each connection getting its own baked timeout that stacks. A target that
+// accepts TCP but never answers the ClientHello must cost ~1×Timeout, decisively
+// under the old ~6×5s (=30s) or ~6×Timeout (=12s) failure mode.
+func TestProbeHangingTargetBoundedByTimeout(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	// Accept connections and hold them open, never responding to the ClientHello.
+	go func() {
+		var held []net.Conn
+		defer func() {
+			for _, c := range held {
+				_ = c.Close()
+			}
+		}()
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			held = append(held, c)
+		}
+	}()
+
+	const timeout = 2 * time.Second
+	g := graph.New()
+	start := time.Now()
+	res, err := probe.Run(context.Background(), []probe.Target{target(t, ln.Addr().String())}, g,
+		probe.RunOptions{Probers: []probe.Prober{newTestProber()}, Timeout: timeout})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(res.Findings) != 0 {
+		t.Fatalf("hanging target yielded %d findings, want 0", len(res.Findings))
+	}
+	if len(res.Errors) == 0 {
+		t.Fatal("hanging target recorded no error, want one")
+	}
+	// One shared timeout budget => ~1×timeout. Assert a generous upper bound well
+	// under the old stacking behavior.
+	if elapsed > 2*timeout {
+		t.Fatalf("hanging target took %v, want < %v (one shared per-target budget, not per-connection)", elapsed, 2*timeout)
+	}
+}
+
+// TestProbeNoConnectionRateLimit proves the fix for MAJOR-1: with the second
+// (netutil) rate limiter removed, a default prober does NO connection-layer
+// pacing. A single target performs ~6 handshakes; under the old baked 20 conns/s
+// limiter (burst 1) that alone forced >= 5*50ms = 250ms of spacing. With --rate
+// (RunOptions.RatePerSec) unset here, the run must finish well under that floor —
+// proving no hidden limiter caps throughput.
+func TestProbeNoConnectionRateLimit(t *testing.T) {
+	cert, _ := leafKeyCert(t, "norate.example.test")
+	addr := startTLSServer(t, cert, nil)
+
+	g := graph.New()
+	start := time.Now()
+	res, err := probe.Run(context.Background(), []probe.Target{target(t, addr)}, g,
+		probe.RunOptions{Probers: []probe.Prober{New()}}) // default prober, RatePerSec = 0 (unlimited)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(res.Findings) != 1 {
+		t.Fatalf("findings = %d, want 1", len(res.Findings))
+	}
+	// Six localhost handshakes take single-digit ms; the old limiter floor was
+	// 250ms. 200ms is a decisive upper bound that the removed limiter would fail.
+	if elapsed > 200*time.Millisecond {
+		t.Fatalf("single-target probe took %v; a hidden connection rate limiter is still capping throughput", elapsed)
 	}
 }
 

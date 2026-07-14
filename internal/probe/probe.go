@@ -143,6 +143,13 @@ func ParseTarget(s string) (Target, error) {
 	if ipv4RangePrefix.MatchString(raw) {
 		return Target{}, fmt.Errorf("probe: %q looks like an address range; targets must be explicit host:port endpoints (no range expansion)", raw)
 	}
+	// A shell glob / wildcard ('*.example.com', '10.0.0.*', 'web?.example.com')
+	// is not a hostname — hostnames and IP literals never contain these — and
+	// would otherwise slip through here to fail confusingly at DNS. Reject it with
+	// the same explicit-targets-only error family as CIDR and range.
+	if strings.ContainsAny(raw, "*?") {
+		return Target{}, fmt.Errorf("probe: %q looks like a shell glob or wildcard; targets must be explicit host:port endpoints (no wildcard/glob expansion)", raw)
+	}
 
 	host, port, hasPort, err := splitHostMaybePort(raw)
 	if err != nil {

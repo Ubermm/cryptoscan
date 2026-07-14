@@ -25,8 +25,8 @@ func TestVersionCommand(t *testing.T) {
 }
 
 func TestPhaseStubsReturnNotImplemented(t *testing.T) {
-	// fs is implemented in Phase 1; probe and graph remain stubs.
-	for _, name := range []string{"probe", "graph"} {
+	// fs (Phase 1) and probe (Phase 2) are implemented; graph remains a stub.
+	for _, name := range []string{"graph"} {
 		t.Run(name, func(t *testing.T) {
 			root := newRootCmd()
 			root.SetOut(&bytes.Buffer{})

@@ -15,7 +15,7 @@ projections of it.
 |---------------|--------------------------------------------------|-----------------|
 | Certificate   | `cert:` + SHA-256 of DER encoding (hex)          | subject, issuer, serial, algorithm, key_size, signature_algorithm, not_before, not_after, san, spki_sha256, self_signed |
 | Key           | `key:` + SPKI SHA-256 (hex)                      | algorithm, key_size, curve, public/private |
-| Endpoint      | `endpoint:` + host:port                          | host, port, protocols, cipher_suites, alpn |
+| Endpoint      | `endpoint:` + host:port                          | host, port, plus an observed-attributes map (`attrs`) holding what a probe recorded — TLS: negotiated_protocol, negotiated_cipher_suite, alpn, protocols_supported, pqc_hybrid_kex; SSH: banner, host_key_algorithms, kex_algorithms, ciphers, macs. The map keeps TLS and SSH parameters distinct instead of overloading shared fields, and keeps the node (not just the Finding) as the primary carrier per principle 2. |
 | Service       | `service:` + name                                | name, kind (nginx, apache, sshd, ...) |
 | ConfigFile    | `file:` + cleaned absolute path                  | path, format, directives of interest w/ line numbers |
 | CryptoLibrary | `lib:` + name@version                            | name, version |
@@ -70,8 +70,14 @@ config scanner. Skips are silent and never abort the walk.
 
 `cryptoscan probe` observes network surfaces; it probes ONLY explicitly
 listed targets (no subnet expansion, no discovery, no port scanning).
-Sane defaults: 5s per-connection timeout, bounded concurrency (default 8),
-a global rate limit; every value flag-overridable.
+Sane defaults: a 5s per-TARGET timeout (`--timeout`) that bounds a target's
+whole probe — every handshake of a target shares that one deadline budget, so a
+hanging target costs ~1×`--timeout`, never a multiple across the TLS version
+enumeration; bounded concurrency (`--concurrency`, default 8); and ONE global
+rate limit (`--rate`, default 10/s, 0 = unlimited) owned solely by the batch
+driver — there is no second connection-layer limiter. Every value is
+flag-overridable, and a shell glob or wildcard target (`*`, `?`) is rejected
+with the same explicit-targets-only error as a CIDR block or range.
 
 Finding classes (probe findings use `Path` = `host:port`, Source `probe`):
 
