@@ -1,0 +1,168 @@
+{
+  "generated_at": "2026-01-01T00:00:00Z",
+  "summary": {
+    "total_findings": 7,
+    "by_type": [
+      {
+        "name": "certificate",
+        "count": 4
+      },
+      {
+        "name": "private_key",
+        "count": 1
+      },
+      {
+        "name": "tls_config",
+        "count": 1
+      },
+      {
+        "name": "tls_endpoint",
+        "count": 1
+      }
+    ],
+    "total_assets_scored": 7,
+    "flagged_assets": 7,
+    "by_flag": [
+      {
+        "name": "expired",
+        "count": 1
+      },
+      {
+        "name": "legacy_protocol",
+        "count": 1
+      },
+      {
+        "name": "quantum_vulnerable_algorithm",
+        "count": 6
+      },
+      {
+        "name": "weak_key",
+        "count": 1
+      },
+      {
+        "name": "weak_signature",
+        "count": 1
+      }
+    ],
+    "by_severity": [
+      {
+        "name": "critical",
+        "count": 2
+      },
+      {
+        "name": "high",
+        "count": 5
+      }
+    ],
+    "quantum_vulnerable": 6,
+    "legacy_protocol": 1,
+    "legacy_endpoints": 0,
+    "expired": 1,
+    "expiring": 0,
+    "pqc_ready_endpoints": 0
+  },
+  "findings": [
+    {
+      "type": "certificate",
+      "algorithm": "RSA",
+      "key_size": "1024",
+      "locations": [
+        "certs/rsa-1024.pem"
+      ],
+      "expiry": "2035-01-01T00:00:00Z",
+      "issuer": "CN=weak.example.com (self-signed)",
+      "pqc_exposure": [
+        "quantum_vulnerable_algorithm",
+        "weak_key"
+      ],
+      "severity": "critical"
+    },
+    {
+      "type": "certificate",
+      "algorithm": "RSA",
+      "key_size": "2048",
+      "locations": [
+        "certs/sha1.pem"
+      ],
+      "expiry": "2035-01-01T00:00:00Z",
+      "issuer": "CN=Example Issuing CA,O=Example",
+      "pqc_exposure": [
+        "quantum_vulnerable_algorithm",
+        "weak_signature"
+      ],
+      "severity": "critical"
+    },
+    {
+      "type": "certificate",
+      "algorithm": "RSA",
+      "key_size": "2048",
+      "locations": [
+        "certs/leaf.pem",
+        "leaf.example.com:443"
+      ],
+      "expiry": "2035-01-01T00:00:00Z",
+      "issuer": "CN=Example Issuing CA,O=Example",
+      "pqc_exposure": [
+        "quantum_vulnerable_algorithm"
+      ],
+      "severity": "high"
+    },
+    {
+      "type": "certificate",
+      "algorithm": "RSA",
+      "key_size": "2048",
+      "locations": [
+        "certs/expired.pem"
+      ],
+      "expiry": "2021-01-01T00:00:00Z (expired)",
+      "issuer": "CN=old.example.com (self-signed)",
+      "pqc_exposure": [
+        "expired",
+        "quantum_vulnerable_algorithm"
+      ],
+      "severity": "high"
+    },
+    {
+      "type": "private_key",
+      "algorithm": "RSA",
+      "key_size": "2048",
+      "locations": [
+        "certs/server.key"
+      ],
+      "expiry": "",
+      "issuer": "",
+      "pqc_exposure": [
+        "quantum_vulnerable_algorithm"
+      ],
+      "severity": "high"
+    },
+    {
+      "type": "tls_endpoint",
+      "algorithm": "TLSv1.3 / TLS_AES_128_GCM_SHA256",
+      "key_size": "",
+      "locations": [
+        "leaf.example.com:443"
+      ],
+      "expiry": "",
+      "issuer": "",
+      "pqc_exposure": [
+        "quantum_vulnerable_algorithm"
+      ],
+      "severity": "high"
+    },
+    {
+      "type": "tls_config",
+      "algorithm": "TLSv1, TLSv1.1, TLSv1.2",
+      "key_size": "",
+      "locations": [
+        "configs/nginx/legacy.conf:12"
+      ],
+      "expiry": "",
+      "issuer": "",
+      "pqc_exposure": [
+        "legacy_protocol"
+      ],
+      "severity": "high"
+    }
+  ]
+}

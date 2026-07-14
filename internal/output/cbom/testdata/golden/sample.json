@@ -1,0 +1,259 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:f12d12f8-c154-0da0-ab7a-3eeeb05298c8",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-01-02T03:04:05Z",
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "cryptoscan",
+          "version": "0.1.0"
+        }
+      ]
+    },
+    "properties": [
+      {
+        "name": "cryptoscan:pqc:summary:expired",
+        "value": "0"
+      },
+      {
+        "name": "cryptoscan:pqc:summary:expiring",
+        "value": "0"
+      },
+      {
+        "name": "cryptoscan:pqc:summary:flag:legacy_protocol",
+        "value": "1"
+      },
+      {
+        "name": "cryptoscan:pqc:summary:flag:quantum_vulnerable_algorithm",
+        "value": "3"
+      },
+      {
+        "name": "cryptoscan:pqc:summary:flagged_nodes",
+        "value": "4"
+      },
+      {
+        "name": "cryptoscan:pqc:summary:legacy_endpoints",
+        "value": "0"
+      },
+      {
+        "name": "cryptoscan:pqc:summary:pqc_ready_endpoints",
+        "value": "0"
+      },
+      {
+        "name": "cryptoscan:pqc:summary:quantum_vulnerable_assets",
+        "value": "3"
+      },
+      {
+        "name": "cryptoscan:pqc:summary:severity:high",
+        "value": "4"
+      },
+      {
+        "name": "cryptoscan:pqc:summary:total_nodes",
+        "value": "4"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "alg:rsa-2048",
+      "name": "RSA-2048",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "pke",
+          "parameterSetIdentifier": "2048",
+          "cryptoFunctions": [
+            "encrypt",
+            "decrypt"
+          ],
+          "nistQuantumSecurityLevel": 0
+        }
+      }
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "alg:sig:sha256-rsa",
+      "name": "SHA256-RSA",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "cryptoFunctions": [
+            "sign",
+            "verify"
+          ],
+          "nistQuantumSecurityLevel": 0
+        }
+      }
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "ca:dn:CN=Example Root CA",
+      "name": "Example Root CA",
+      "cryptoProperties": {
+        "assetType": "certificate",
+        "certificateProperties": {
+          "subjectName": "CN=Example Root CA"
+        }
+      }
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "cert:1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "leaf.example.com",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "certificate",
+        "certificateProperties": {
+          "subjectName": "CN=leaf.example.com,O=Example",
+          "issuerName": "CN=Example Root CA",
+          "notValidBefore": "2025-01-01T00:00:00Z",
+          "notValidAfter": "2035-01-01T00:00:00Z",
+          "signatureAlgorithmRef": "alg:sig:sha256-rsa",
+          "subjectPublicKeyRef": "key:3333333333333333333333333333333333333333333333333333333333333333",
+          "certificateFormat": "X.509"
+        }
+      },
+      "properties": [
+        {
+          "name": "cryptoscan:pqc:quantum_vulnerable_algorithm",
+          "value": "true"
+        },
+        {
+          "name": "cryptoscan:pqc:severity",
+          "value": "high"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "endpoint:leaf.example.com:443",
+      "name": "leaf.example.com:443",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": "TLSv1.3",
+          "cipherSuites": [
+            {
+              "name": "TLS_AES_128_GCM_SHA256"
+            }
+          ]
+        }
+      },
+      "properties": [
+        {
+          "name": "cryptoscan:pqc:quantum_vulnerable_algorithm",
+          "value": "true"
+        },
+        {
+          "name": "cryptoscan:pqc:severity",
+          "value": "high"
+        },
+        {
+          "name": "cryptoscan:tls:pqc_hybrid_kex",
+          "value": "false"
+        },
+        {
+          "name": "cryptoscan:tls:protocols_supported",
+          "value": "TLSv1.2,TLSv1.3"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "file:/etc/nginx/nginx.conf",
+      "name": "/etc/nginx/nginx.conf",
+      "properties": [
+        {
+          "name": "cryptoscan:config:cert_refs",
+          "value": "/etc/ssl/leaf.pem"
+        },
+        {
+          "name": "cryptoscan:config:ciphers",
+          "value": "ECDHE-RSA-AES128-GCM-SHA256"
+        },
+        {
+          "name": "cryptoscan:config:format",
+          "value": "nginx"
+        },
+        {
+          "name": "cryptoscan:config:protocols",
+          "value": "TLSv1,TLSv1.1,TLSv1.2"
+        },
+        {
+          "name": "cryptoscan:pqc:legacy_protocol",
+          "value": "true"
+        },
+        {
+          "name": "cryptoscan:pqc:severity",
+          "value": "high"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "key:3333333333333333333333333333333333333333333333333333333333333333",
+      "name": "RSA 2048-bit key",
+      "cryptoProperties": {
+        "assetType": "related-crypto-material",
+        "relatedCryptoMaterialProperties": {
+          "type": "public-key",
+          "id": "3333333333333333333333333333333333333333333333333333333333333333",
+          "algorithmRef": "alg:rsa-2048",
+          "size": 2048
+        }
+      },
+      "properties": [
+        {
+          "name": "cryptoscan:pqc:quantum_vulnerable_algorithm",
+          "value": "true"
+        },
+        {
+          "name": "cryptoscan:pqc:severity",
+          "value": "high"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "ca:dn:CN=Example Root CA"
+    },
+    {
+      "ref": "cert:1111111111111111111111111111111111111111111111111111111111111111",
+      "dependsOn": [
+        "ca:dn:CN=Example Root CA"
+      ]
+    },
+    {
+      "ref": "endpoint:leaf.example.com:443",
+      "dependsOn": [
+        "cert:1111111111111111111111111111111111111111111111111111111111111111"
+      ]
+    },
+    {
+      "ref": "file:/etc/nginx/nginx.conf",
+      "dependsOn": [
+        "cert:1111111111111111111111111111111111111111111111111111111111111111"
+      ],
+      "provides": [
+        "cert:1111111111111111111111111111111111111111111111111111111111111111"
+      ]
+    },
+    {
+      "ref": "key:3333333333333333333333333333333333333333333333333333333333333333"
+    }
+  ]
+}

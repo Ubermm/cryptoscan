@@ -1,0 +1,15 @@
+digraph cryptoscan {
+  rankdir=LR;
+  node [style=filled, fontname="sans-serif"];
+  "n31e5971c3dc8400e" [label="CA\nCN=Example Root CA", shape=doubleoctagon, fillcolor="#ffd0a8"];
+  "n3daddf816b279aaf" [label="Certificate\nleaf.example.com\n111111111111", shape=box, fillcolor="#cfe8ff"];
+  "n814c579c4c365006" [label="Certificate\nExample Intermediate CA\n222222222222", shape=box, fillcolor="#cfe8ff"];
+  "ne069921114529206" [label="Endpoint\nleaf.example.com:443", shape=box, fillcolor="#c9f2d0"];
+  "nc71a8942c8a82b47" [label="ConfigFile\nnginx.conf", shape=note, fillcolor="#fff4c2"];
+  "n005f74e09b9bf8b6" [label="Key\nRSA 2048\n333333333333", shape=ellipse, fillcolor="#ffe9a8"];
+  "n3daddf816b279aaf" -> "n31e5971c3dc8400e" [label="issued_by"];
+  "nc71a8942c8a82b47" -> "n3daddf816b279aaf" [label="references"];
+  "n3daddf816b279aaf" -> "n005f74e09b9bf8b6" [label="signs_with"];
+  "n3daddf816b279aaf" -> "nc71a8942c8a82b47" [label="stored_in"];
+  "n3daddf816b279aaf" -> "ne069921114529206" [label="terminates_tls_for"];
+}

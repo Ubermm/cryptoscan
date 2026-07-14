@@ -1,0 +1,49 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-01-02T03:04:05Z",
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "cryptoscan",
+          "version": "0.1.0"
+        }
+      ]
+    },
+    "properties": [
+      {
+        "name": "cryptoscan:pqc:summary:expired",
+        "value": "0"
+      },
+      {
+        "name": "cryptoscan:pqc:summary:expiring",
+        "value": "0"
+      },
+      {
+        "name": "cryptoscan:pqc:summary:flagged_nodes",
+        "value": "0"
+      },
+      {
+        "name": "cryptoscan:pqc:summary:legacy_endpoints",
+        "value": "0"
+      },
+      {
+        "name": "cryptoscan:pqc:summary:pqc_ready_endpoints",
+        "value": "0"
+      },
+      {
+        "name": "cryptoscan:pqc:summary:quantum_vulnerable_assets",
+        "value": "0"
+      },
+      {
+        "name": "cryptoscan:pqc:summary:total_nodes",
+        "value": "0"
+      }
+    ]
+  }
+}

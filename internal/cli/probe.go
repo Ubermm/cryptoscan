@@ -59,7 +59,9 @@ func newProbeCmd() *cobra.Command {
 		Args:         cobra.ArbitraryArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runProbe(cmd.OutOrStdout(), args, opts)
+			// The command layer supplies the REAL clock once; the emitters and
+			// pqc.Score consume it (they never call time.Now themselves).
+			return runProbe(cmd.OutOrStdout(), args, opts, time.Now())
 		},
 	}
 	f := cmd.Flags()
@@ -67,8 +69,10 @@ func newProbeCmd() *cobra.Command {
 	f.DurationVar(&opts.timeout, "timeout", probe.DefaultTimeout, "per-target probe timeout")
 	f.IntVar(&opts.concurrency, "concurrency", probe.DefaultConcurrency, "maximum simultaneous probes")
 	f.Float64Var(&opts.rate, "rate", defaultProbeRate, "maximum probe operations per second (0 = unlimited)")
-	f.BoolVar(&opts.quiet, "quiet", false, "print per-class counts and a one-line graph summary only")
+	f.BoolVar(&opts.quiet, "quiet", false, "print per-class counts and a one-line graph summary only (table format only)")
 	f.BoolVar(&opts.verbose, "verbose", false, "list every per-target probe error in full")
+	f.StringVar(&opts.format, "format", formatTable, scanFormatHelp)
+	f.StringVar(&opts.output, "output", "", "write to this file instead of stdout")
 	return cmd
 }
 
@@ -80,6 +84,8 @@ type probeCmdOptions struct {
 	rate        float64
 	quiet       bool
 	verbose     bool
+	format      string
+	output      string
 }
 
 // runProbe gathers the targets, runs every registered prober against them into
@@ -88,7 +94,15 @@ type probeCmdOptions struct {
 // target, an unreadable targets file — or when NO target could be probed at all
 // (every prober failed against every target). A target reachable by one prober
 // but not the other is a success; the non-matching prober's error is expected.
-func runProbe(w io.Writer, args []string, opts probeCmdOptions) error {
+func runProbe(stdout io.Writer, args []string, opts probeCmdOptions, now time.Time) error {
+	format, err := normalizeScanFormat(opts.format)
+	if err != nil {
+		return err
+	}
+	if err := checkQuietFormat(format, opts.quiet); err != nil {
+		return err
+	}
+
 	targets, err := gatherTargets(args, opts.targetsFile)
 	if err != nil {
 		return err
@@ -107,21 +121,34 @@ func runProbe(w io.Writer, args []string, opts probeCmdOptions) error {
 		return fmt.Errorf("probe run: %w", err)
 	}
 
-	writeClassCounts(w, res.Findings)
-	if !opts.quiet {
-		writeProbeFindingsTable(w, res.Findings)
-	}
-	writeProbeGraphStats(w, g, opts.quiet)
-	if !opts.quiet {
-		writeProbeErrors(w, res.Errors, opts.verbose)
+	if format == formatTable {
+		return writeToDest(stdout, opts.output, func(w io.Writer) error {
+			writeClassCounts(w, res.Findings)
+			if !opts.quiet {
+				writeProbeFindingsTable(w, res.Findings)
+			}
+			writeProbeGraphStats(w, g, opts.quiet)
+			if !opts.quiet {
+				writeProbeErrors(w, res.Errors, opts.verbose)
+			}
+			// Exit 1 only when nothing at all could be probed. With every prober
+			// run against every target, zero findings means every (target,
+			// prober) failed.
+			if len(res.Findings) == 0 {
+				return fmt.Errorf("no target could be probed (%d probe error(s) across %d target(s))", len(res.Errors), len(targets))
+			}
+			return nil
+		})
 	}
 
-	// Exit 1 only when nothing at all could be probed. With every prober run
-	// against every target, zero findings means every (target, prober) failed.
+	// Machine formats: a probe that reached nothing at all is an error, not an
+	// empty BOM/report — surface it before emitting anything.
 	if len(res.Findings) == 0 {
 		return fmt.Errorf("no target could be probed (%d probe error(s) across %d target(s))", len(res.Errors), len(targets))
 	}
-	return nil
+	return writeToDest(stdout, opts.output, func(w io.Writer) error {
+		return emitGraphOutput(w, g, format, now)
+	})
 }
 
 // gatherTargets parses the positional args (if any) then the --targets-file (if

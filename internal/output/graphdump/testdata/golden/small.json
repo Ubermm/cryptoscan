@@ -1,0 +1,160 @@
+{
+  "nodes": [
+    {
+      "id": "ca:dn:CN=Example Root CA",
+      "type": "CA",
+      "attrs": {
+        "dn": "CN=Example Root CA"
+      },
+      "provenance": []
+    },
+    {
+      "id": "cert:1111111111111111111111111111111111111111111111111111111111111111",
+      "type": "Certificate",
+      "attrs": {
+        "algorithm": "RSA",
+        "issuer": "CN=Example Intermediate CA",
+        "key_size": 2048,
+        "not_after": "2035-01-01T00:00:00Z",
+        "not_before": "2025-01-01T00:00:00Z",
+        "san": [
+          "leaf.example.com",
+          "www.example.com"
+        ],
+        "serial": "0a0b0c",
+        "signature_algorithm": "SHA256-RSA",
+        "spki_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+        "subject": "CN=leaf.example.com,O=Example"
+      },
+      "provenance": [
+        {
+          "source": "fs",
+          "location": "/etc/ssl/leaf.pem",
+          "detail": "PEM CERTIFICATE"
+        }
+      ]
+    },
+    {
+      "id": "cert:2222222222222222222222222222222222222222222222222222222222222222",
+      "type": "Certificate",
+      "attrs": {
+        "algorithm": "ECDSA",
+        "issuer": "CN=Example Root CA",
+        "not_after": "0001-01-01T00:00:00Z",
+        "not_before": "0001-01-01T00:00:00Z",
+        "signature_algorithm": "ECDSA-SHA384",
+        "subject": "CN=Example Intermediate CA"
+      },
+      "provenance": [
+        {
+          "source": "fs",
+          "location": "/etc/ssl/leaf.pem",
+          "line": 30
+        }
+      ]
+    },
+    {
+      "id": "endpoint:leaf.example.com:443",
+      "type": "Endpoint",
+      "attrs": {
+        "attrs": {
+          "negotiated_protocol": "TLSv1.3",
+          "pqc_hybrid_kex": false,
+          "protocols_supported": [
+            "TLSv1.2",
+            "TLSv1.3"
+          ]
+        },
+        "host": "leaf.example.com",
+        "port": 443
+      },
+      "provenance": [
+        {
+          "source": "probe",
+          "location": "leaf.example.com:443",
+          "detail": "tls handshake"
+        }
+      ]
+    },
+    {
+      "id": "file:/etc/nginx/nginx.conf",
+      "type": "ConfigFile",
+      "attrs": {
+        "directives": [
+          {
+            "name": "ssl_certificate",
+            "value": "/etc/ssl/leaf.pem",
+            "line": 12
+          }
+        ],
+        "format": "nginx",
+        "path": "/etc/nginx/nginx.conf"
+      },
+      "provenance": [
+        {
+          "source": "config",
+          "location": "/etc/nginx/nginx.conf",
+          "line": 12
+        }
+      ]
+    },
+    {
+      "id": "key:3333333333333333333333333333333333333333333333333333333333333333",
+      "type": "Key",
+      "attrs": {
+        "algorithm": "RSA",
+        "has_public": true,
+        "key_size": 2048
+      },
+      "provenance": [
+        {
+          "source": "fs",
+          "location": "/etc/ssl/leaf.pem"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "type": "issued_by",
+      "from": "cert:1111111111111111111111111111111111111111111111111111111111111111",
+      "to": "ca:dn:CN=Example Root CA",
+      "provenance": [
+        {
+          "source": "fs",
+          "location": "/etc/ssl/leaf.pem"
+        }
+      ]
+    },
+    {
+      "type": "references",
+      "from": "file:/etc/nginx/nginx.conf",
+      "to": "cert:1111111111111111111111111111111111111111111111111111111111111111",
+      "provenance": [
+        {
+          "source": "config",
+          "location": "/etc/nginx/nginx.conf",
+          "line": 12
+        }
+      ]
+    },
+    {
+      "type": "signs_with",
+      "from": "cert:1111111111111111111111111111111111111111111111111111111111111111",
+      "to": "key:3333333333333333333333333333333333333333333333333333333333333333",
+      "provenance": []
+    },
+    {
+      "type": "stored_in",
+      "from": "cert:1111111111111111111111111111111111111111111111111111111111111111",
+      "to": "file:/etc/nginx/nginx.conf",
+      "provenance": []
+    },
+    {
+      "type": "terminates_tls_for",
+      "from": "cert:1111111111111111111111111111111111111111111111111111111111111111",
+      "to": "endpoint:leaf.example.com:443",
+      "provenance": []
+    }
+  ]
+}

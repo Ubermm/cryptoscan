@@ -1,0 +1,4 @@
+digraph cryptoscan {
+  rankdir=LR;
+  node [style=filled, fontname="sans-serif"];
+}

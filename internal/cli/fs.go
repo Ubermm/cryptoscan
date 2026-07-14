@@ -6,13 +6,12 @@ import (
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/cryptoscan/cryptoscan/internal/graph"
 	"github.com/cryptoscan/cryptoscan/internal/scan"
-	"github.com/cryptoscan/cryptoscan/internal/scan/certs"
-	"github.com/cryptoscan/cryptoscan/internal/scan/config"
 )
 
 // newFsCmd is the local filesystem scanner (Phase 1). It runs the certificate/
@@ -24,6 +23,7 @@ import (
 // end from Phase 1.
 func newFsCmd() *cobra.Command {
 	var quiet bool
+	var format, output string
 	cmd := &cobra.Command{
 		Use:   "fs <path>",
 		Short: "Scan a local filesystem path for cryptographic assets",
@@ -31,41 +31,64 @@ func newFsCmd() *cobra.Command {
 			"Recursively walks <path> and reports certificates, keys, keystores " +
 			"(JKS/PKCS#12), and server TLS configs (nginx, apache, sshd, " +
 			"openssl.cnf, haproxy) it can prove by parsing the bytes.\n\n" +
+			"Output: --format table (default) prints the human summary; --format cbom " +
+			"emits a CycloneDX 1.6 CBOM (JSON); --format report / report-json emit the " +
+			"auditor report as Markdown / JSON. --output <file> writes there instead of " +
+			"stdout. --quiet shapes only the table summary.\n\n" +
 			"Limits: each regular file larger than 8 MiB is skipped without being " +
 			"read; directories, symlinks, and other non-regular files are not " +
 			"followed. Unreadable or malformed files are skipped silently and " +
 			"never abort the scan.",
-		Args: cobra.ExactArgs(1),
+		Args:         cobra.ExactArgs(1),
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFs(cmd.OutOrStdout(), args[0], quiet)
+			// The command layer supplies the REAL clock once; the emitters and
+			// pqc.Score consume it (they never call time.Now themselves).
+			return runFs(cmd.OutOrStdout(), args[0], quiet, format, output, time.Now())
 		},
 	}
-	cmd.Flags().BoolVar(&quiet, "quiet", false, "print per-class counts only")
+	f := cmd.Flags()
+	f.BoolVar(&quiet, "quiet", false, "print per-class counts only (table format only)")
+	f.StringVar(&format, "format", formatTable, scanFormatHelp)
+	f.StringVar(&output, "output", "", "write to this file instead of stdout")
 	return cmd
 }
 
 // runFs scans root with both Phase 1 scanners into one graph, resolves the
-// references join, and writes the summary to w. It returns an error only when a
-// scanner could not walk root at all (mapped to exit 1 by Execute); individual
-// unreadable/malformed files are skipped by the scanners themselves.
-func runFs(w io.Writer, root string, quiet bool) error {
-	g := graph.New()
-
-	var findings []scan.Finding
-	certFindings, err := certs.New().ScanIntoGraph(root, g)
+// references join, and writes the requested projection to stdout or --output.
+// For --format table it prints the interim human summary (unchanged); for cbom/
+// report/report-json it computes the PQC exposure as of `now` and emits via the
+// standards-native / auditor libraries. It returns an error (mapped to exit 1 by
+// Execute) on a bad --format, a --quiet+machine-format combination, a scan
+// failure, or an output-write failure; individual unreadable/malformed files are
+// skipped by the scanners themselves. It never panics.
+func runFs(stdout io.Writer, root string, quiet bool, format, output string, now time.Time) error {
+	format, err := normalizeScanFormat(format)
 	if err != nil {
-		return fmt.Errorf("scanning %q: %w", root, err)
+		return err
 	}
-	findings = append(findings, certFindings...)
+	if err := checkQuietFormat(format, quiet); err != nil {
+		return err
+	}
 
-	cfgFindings, err := config.ScanIntoGraph(root, g)
+	g, findings, resolved, err := scanFilesystem(root)
 	if err != nil {
-		return fmt.Errorf("scanning %q: %w", root, err)
+		return err
 	}
-	findings = append(findings, cfgFindings...)
 
-	resolved := g.ResolveReferences()
+	return writeToDest(stdout, output, func(w io.Writer) error {
+		if format == formatTable {
+			renderFsTable(w, g, findings, resolved, quiet)
+			return nil
+		}
+		return emitGraphOutput(w, g, format, now)
+	})
+}
 
+// renderFsTable writes the interim human summary (per-class counts, the findings
+// table unless quiet, and the graph stats) to w. Findings are sorted by
+// (class, path, alias) for deterministic output.
+func renderFsTable(w io.Writer, g *graph.Graph, findings []scan.Finding, resolved int, quiet bool) {
 	sort.Slice(findings, func(i, j int) bool {
 		if findings[i].Class != findings[j].Class {
 			return findings[i].Class < findings[j].Class
@@ -81,7 +104,6 @@ func runFs(w io.Writer, root string, quiet bool) error {
 		writeFindingsTable(w, findings)
 	}
 	writeGraphStats(w, g, resolved, quiet)
-	return nil
 }
 
 // writeClassCounts prints the per-class finding tally and the total.

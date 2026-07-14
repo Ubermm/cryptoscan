@@ -63,10 +63,12 @@
 // # Graph handoff
 //
 // ScanIntoGraph upserts one ConfigFile node per recognised file (id via
-// graph.FileNodeID of the on-disk path; attrs: format + the extracted
-// directives with per-directive line provenance) and, for every certificate or
-// key path reference, emits a `references` edge ConfigFile -> ConfigFile-node-
-// of-the-referenced-file. Relative refs are resolved against the config file's
+// graph.FileNodeID of the on-disk path; carrying format, the extracted
+// directives with per-directive line provenance, and — as the node's Attrs — the
+// SAME resolved values the file's Finding exposes, from one computed source, so
+// downstream consumers read resolved config state off the node instead of
+// re-deriving it) and, for every certificate or key path reference, emits a
+// `references` edge ConfigFile -> ConfigFile-node-of-the-referenced-file. Relative refs are resolved against the config file's
 // own directory and cleaned to a corpus-root-relative path; absolute refs
 // (e.g. /etc/ssh/ssh_host_rsa_key) are kept as written. The integration owner
 // later joins these referenced-file nodes to Certificate nodes
@@ -286,6 +288,7 @@ func populate(root string, h hit, g *graph.Graph) {
 		Path:       h.rel,
 		Format:     h.res.format,
 		Directives: h.res.directives,
+		Attrs:      h.res.attrs,
 	}
 	node.NodeID = fromID
 	for _, d := range h.res.directives {

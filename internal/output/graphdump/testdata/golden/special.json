@@ -1,0 +1,39 @@
+{
+  "nodes": [
+    {
+      "id": "cert:1111111111111111111111111111111111111111111111111111111111111111",
+      "type": "Certificate",
+      "attrs": {
+        "algorithm": "RSA",
+        "key_size": 1024,
+        "not_after": "0001-01-01T00:00:00Z",
+        "not_before": "0001-01-01T00:00:00Z",
+        "subject": "CN=a\"b\\c\nd,O=Back\\slash"
+      },
+      "provenance": [
+        {
+          "source": "fs",
+          "location": "/path/with \"quote\"\nand newline",
+          "detail": "line1\nline2\ttab"
+        }
+      ]
+    },
+    {
+      "id": "file:/etc/weird/na\"me.conf",
+      "type": "ConfigFile",
+      "attrs": {
+        "format": "nginx",
+        "path": "/etc/weird/na\"me.conf"
+      },
+      "provenance": []
+    }
+  ],
+  "edges": [
+    {
+      "type": "stored_in",
+      "from": "cert:1111111111111111111111111111111111111111111111111111111111111111",
+      "to": "file:/etc/weird/na\"me.conf",
+      "provenance": []
+    }
+  ]
+}

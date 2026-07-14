@@ -379,6 +379,89 @@ func TestUpsertEndpointAttrsIntoEmpty(t *testing.T) {
 	}
 }
 
+// TestUpsertConfigFileAttrsMerge covers the ConfigFileNode Attrs merge: a key
+// union with existing-wins per key, matching the EndpointNode Attrs merge rule so
+// resolved config state folds into one node without clobbering.
+func TestUpsertConfigFileAttrsMerge(t *testing.T) {
+	id, err := FileNodeID("/etc/nginx/nginx.conf")
+	if err != nil {
+		t.Fatalf("FileNodeID: %v", err)
+	}
+	g := New()
+
+	first := &ConfigFileNode{
+		baseNode: baseNode{NodeID: id},
+		Path:     "configs/nginx/nginx.conf",
+		Format:   "nginx",
+		Attrs: map[string]any{
+			"protocols": []string{"TLSv1", "TLSv1.2"},
+			"cert_refs": []string{"../../certs/leaf.pem"},
+		},
+	}
+	first.AddProvenance(Provenance{Source: SourceConfig, Location: "configs/nginx/nginx.conf", Line: 10})
+	if _, err := g.UpsertNode(first); err != nil {
+		t.Fatalf("first upsert: %v", err)
+	}
+
+	second := &ConfigFileNode{
+		baseNode: baseNode{NodeID: id},
+		Path:     "configs/nginx/nginx.conf",
+		Format:   "nginx",
+		Attrs: map[string]any{
+			"protocols": []string{"IGNORED"},                     // existing wins
+			"ciphers":   []string{"ECDHE-RSA-AES128-GCM-SHA256"}, // new key filled
+		},
+	}
+	second.AddProvenance(Provenance{Source: SourceConfig, Location: "configs/nginx/nginx.conf", Line: 20})
+
+	resident, err := g.UpsertNode(second)
+	if err != nil {
+		t.Fatalf("second upsert: %v", err)
+	}
+	if g.NodeCount() != 1 {
+		t.Fatalf("node count = %d, want 1 after merge", g.NodeCount())
+	}
+	cf, ok := resident.(*ConfigFileNode)
+	if !ok {
+		t.Fatalf("resident is %T, want *ConfigFileNode", resident)
+	}
+	if got, _ := cf.Attrs["protocols"].([]string); len(got) != 2 || got[0] != "TLSv1" {
+		t.Errorf("protocols = %v, want existing 2-element list to win", cf.Attrs["protocols"])
+	}
+	if got, _ := cf.Attrs["ciphers"].([]string); len(got) != 1 {
+		t.Errorf("ciphers = %v, want it filled from the second upsert", cf.Attrs["ciphers"])
+	}
+	if got, _ := cf.Attrs["cert_refs"].([]string); len(got) != 1 {
+		t.Errorf("cert_refs = %v, want the original list preserved", cf.Attrs["cert_refs"])
+	}
+	if len(cf.Provenance()) != 2 {
+		t.Errorf("provenance = %v, want 2 unioned records", cf.Provenance())
+	}
+}
+
+// TestUpsertConfigFileAttrsIntoEmpty covers merging attrs into a node whose Attrs
+// map started nil: the merge must lazily allocate it.
+func TestUpsertConfigFileAttrsIntoEmpty(t *testing.T) {
+	id, err := FileNodeID("/etc/ssh/sshd_config")
+	if err != nil {
+		t.Fatalf("FileNodeID: %v", err)
+	}
+	g := New()
+	if _, err := g.UpsertNode(&ConfigFileNode{baseNode: baseNode{NodeID: id}, Path: "configs/ssh/sshd_config", Format: "sshd"}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	resident, err := g.UpsertNode(&ConfigFileNode{
+		baseNode: baseNode{NodeID: id}, Path: "configs/ssh/sshd_config", Format: "sshd",
+		Attrs: map[string]any{"kex_algorithms": []string{"curve25519-sha256"}},
+	})
+	if err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	if got, _ := resident.(*ConfigFileNode).Attrs["kex_algorithms"].([]string); len(got) != 1 {
+		t.Errorf("kex_algorithms = %v, want it filled into a previously nil Attrs", resident.(*ConfigFileNode).Attrs["kex_algorithms"])
+	}
+}
+
 // --- edge dedupe tests ---
 
 func TestAddEdge(t *testing.T) {

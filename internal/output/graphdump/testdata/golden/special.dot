@@ -1,0 +1,7 @@
+digraph cryptoscan {
+  rankdir=LR;
+  node [style=filled, fontname="sans-serif"];
+  "n3daddf816b279aaf" [label="Certificate\na\"b\\c d\n111111111111", shape=box, fillcolor="#cfe8ff"];
+  "n1d4d0615c64e2501" [label="ConfigFile\nna\"me.conf", shape=note, fillcolor="#fff4c2"];
+  "n3daddf816b279aaf" -> "n1d4d0615c64e2501" [label="stored_in"];
+}

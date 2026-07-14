@@ -24,26 +24,6 @@ func TestVersionCommand(t *testing.T) {
 	}
 }
 
-func TestPhaseStubsReturnNotImplemented(t *testing.T) {
-	// fs (Phase 1) and probe (Phase 2) are implemented; graph remains a stub.
-	for _, name := range []string{"graph"} {
-		t.Run(name, func(t *testing.T) {
-			root := newRootCmd()
-			root.SetOut(&bytes.Buffer{})
-			root.SetErr(&bytes.Buffer{})
-			root.SetArgs([]string{name})
-
-			err := root.Execute()
-			if err == nil {
-				t.Fatalf("%s stub returned nil error, want not-implemented", name)
-			}
-			if !errors.Is(err, errNotImplemented) {
-				t.Errorf("%s error = %v, want errNotImplemented", name, err)
-			}
-		})
-	}
-}
-
 func TestExecuteExitCodes(t *testing.T) {
 	// version -> 0. (Execute builds its own root; args come from os.Args in
 	// production, so here we only assert the success path is reachable.)

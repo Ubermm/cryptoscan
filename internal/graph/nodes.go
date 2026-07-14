@@ -202,12 +202,27 @@ func (s *ServiceNode) mergeFrom(other Node) error {
 	return nil
 }
 
-// ConfigFileNode identifies a config or keystore file by cleaned absolute path.
+// ConfigFileNode identifies a config or keystore file by cleaned absolute path
+// (DESIGN.md §1). Beyond its identity fields (Path, Format) and the raw
+// Directives of interest with their line numbers, it carries an Attrs map of the
+// RESOLVED observed values the config scanner computed for this file — the SAME
+// values it emits on the corresponding Finding, keyed by the config-finding
+// attribute names:
+//
+//   - tls_config: protocols, ciphers, cert_refs, min_protocol, cipher_string
+//   - ssh_config: host_key_types, host_key_refs, kex_algorithms, ciphers, macs
+//
+// The node — not just the projected Finding — is the single source of truth for
+// resolved config state (principle 2): downstream consumers (pqc scoring, report,
+// CBOM) read these attrs and MUST NOT re-derive protocol resolution from the raw
+// Directives. The map keeps the per-class attribute sets distinct instead of
+// overloading typed fields, mirroring EndpointNode.Attrs.
 type ConfigFileNode struct {
 	baseNode
-	Path       string      `json:"path,omitempty"`
-	Format     string      `json:"format,omitempty"`
-	Directives []Directive `json:"directives,omitempty"`
+	Path       string         `json:"path,omitempty"`
+	Format     string         `json:"format,omitempty"`
+	Directives []Directive    `json:"directives,omitempty"`
+	Attrs      map[string]any `json:"attrs,omitempty"`
 }
 
 // Directive is a single directive of interest found in a config file, with the
@@ -233,6 +248,7 @@ func (f *ConfigFileNode) mergeFrom(other Node) error {
 			f.Directives = append(f.Directives, d)
 		}
 	}
+	mergeAttrs(&f.Attrs, o.Attrs)
 	f.AddProvenance(o.Prov...)
 	return nil
 }
