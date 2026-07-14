@@ -3,6 +3,7 @@ package corpus
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -56,6 +57,35 @@ func TestMergeDuplicateIDErrors(t *testing.T) {
 	}
 	if len(c.Assets) != 2 {
 		t.Errorf("merged assets = %d, want 2", len(c.Assets))
+	}
+}
+
+// TestMergeDuplicateIDMessage checks the error phrasing is sensible for both a
+// cross-fragment collision and a within-a-single-fragment repeat (the latter
+// must not read as "fragment #0 and fragment #0").
+func TestMergeDuplicateIDMessage(t *testing.T) {
+	// Within one fragment.
+	single := &Fragment{Version: 1, Assets: []Asset{
+		{ID: "dup", Class: "certificate", Path: "a.pem"},
+		{ID: "dup", Class: "certificate", Path: "b.pem"},
+	}}
+	_, err := Merge(single)
+	if err == nil {
+		t.Fatal("expected within-fragment duplicate-id error, got nil")
+	}
+	if got := err.Error(); !strings.Contains(got, "more than once") || strings.Contains(got, "and fragment") {
+		t.Errorf("within-fragment message = %q, want 'more than once' and no 'X and fragment Y'", got)
+	}
+
+	// Across two fragments.
+	a := &Fragment{Version: 1, Assets: []Asset{{ID: "dup", Class: "certificate", Path: "a.pem"}}}
+	b := &Fragment{Version: 1, Assets: []Asset{{ID: "dup", Class: "certificate", Path: "b.pem"}}}
+	_, err = Merge(a, b)
+	if err == nil {
+		t.Fatal("expected cross-fragment duplicate-id error, got nil")
+	}
+	if got := err.Error(); !strings.Contains(got, "fragment #0 and fragment #1") {
+		t.Errorf("cross-fragment message = %q, want it to name both fragments", got)
 	}
 }
 

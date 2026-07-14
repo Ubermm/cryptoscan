@@ -54,6 +54,18 @@ projections of it.
 | `references`        | ConfigFile → Certificate/Key/ConfigFile | config directive points at a path (e.g. `ssl_certificate`) |
 | `signs_with`        | Certificate → Key          | cert's subject public key / signing key linkage |
 
+### Scanner limits
+
+Every filesystem scanner (certs and config) applies one shared, documented
+per-file byte cap: `scan.MaxFileSize` = **8 MiB**. A regular file larger than
+the cap is skipped deterministically — it is never read into memory — so a
+pathological input cannot exhaust memory during a walk. Certificates, keys,
+CSRs, keystores, and server configs are all far smaller than this ceiling, so
+the cap never suppresses a genuine asset; it only rejects files too large to be
+one. Directories, symlinks, and other non-regular files are not followed, and
+files with a NUL byte in their head are treated as binary and skipped by the
+config scanner. Skips are silent and never abort the walk.
+
 ## 2. Corpus & ground truth (`testdata/corpus/`)
 
 Layout:
@@ -163,3 +175,5 @@ Per-node boolean flags, all provable from graph attributes:
 - `weak_signature`: SHA-1 (or MD5) signature algorithm
 - `weak_key`: RSA < 2048 bits
 - `expiring`/`expired`: notAfter within 90 days / past
+- `not_yet_valid`: notBefore in the future (certificate not yet in its validity
+  window)

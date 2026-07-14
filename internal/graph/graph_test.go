@@ -66,6 +66,51 @@ func TestIDHelpers(t *testing.T) {
 			want: "endpoint:[::1]:8443",
 		},
 		{
+			name: "service by name",
+			got:  func() (string, error) { return ServiceNodeID("nginx") },
+			want: "service:nginx",
+		},
+		{
+			name: "service trims whitespace",
+			got:  func() (string, error) { return ServiceNodeID("  sshd\n") },
+			want: "service:sshd",
+		},
+		{
+			name: "crypto library name@version",
+			got:  func() (string, error) { return CryptoLibraryNodeID("openssl", "3.0.2") },
+			want: "lib:openssl@3.0.2",
+		},
+		{
+			name: "crypto library empty version keeps trailing @",
+			got:  func() (string, error) { return CryptoLibraryNodeID("boringssl", "") },
+			want: "lib:boringssl@",
+		},
+		{
+			name: "kms provider + key id",
+			got:  func() (string, error) { return KMSEntryNodeID("aws-kms", "key/abc-123") },
+			want: "kms:aws-kms:key/abc-123",
+		},
+		{
+			name:    "service rejects empty",
+			got:     func() (string, error) { return ServiceNodeID("  ") },
+			wantErr: true,
+		},
+		{
+			name:    "crypto library rejects empty name",
+			got:     func() (string, error) { return CryptoLibraryNodeID("", "1.0") },
+			wantErr: true,
+		},
+		{
+			name:    "kms rejects empty provider",
+			got:     func() (string, error) { return KMSEntryNodeID("", "k") },
+			wantErr: true,
+		},
+		{
+			name:    "kms rejects empty key id",
+			got:     func() (string, error) { return KMSEntryNodeID("aws-kms", "  ") },
+			wantErr: true,
+		},
+		{
 			name:    "cert rejects short hash",
 			got:     func() (string, error) { return CertNodeID("deadbeef") },
 			wantErr: true,

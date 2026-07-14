@@ -1,0 +1,6 @@
+Networking terminology clarification
+====================================
+
+MACs are hardware network addresses. Do not confuse a media access control
+address, which identifies a network interface, with a message authentication
+code, which protects the integrity of a message. Same acronym, different world.

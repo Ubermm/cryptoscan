@@ -41,9 +41,23 @@ golangci-lint run
 ```
 
 Every parser gets table-driven tests; every output emitter gets golden-file
-tests. The certificate and config parsers are fuzzed (native Go fuzzing) with
-seeds drawn from the negative fixtures. **No panics on malformed input, ever** —
+tests. The certificate and config parsers are fuzzed with native Go fuzzing,
+seeded from the negative fixtures. **No panics on malformed input, ever** —
 library code returns errors instead.
+
+The fuzz targets live next to the parsers: `FuzzPEM` / `FuzzDER` in
+`internal/scan/certs`, and `FuzzNginx`, `FuzzApache`, `FuzzSSHD`, `FuzzOpenSSL`,
+`FuzzHAProxy`, `FuzzDetect` in `internal/scan/config`. Their seed corpora run as
+ordinary unit tests under `go test ./...`. To fuzz for real, run one target at a
+time (Go fuzzing allows a single `-fuzz` target per package):
+
+```sh
+go test ./internal/scan/certs  -run=^$ -fuzz=FuzzPEM   -fuzztime=30s
+go test ./internal/scan/config -run=^$ -fuzz=FuzzNginx -fuzztime=30s
+```
+
+Any crasher Go writes under `testdata/fuzz/` should be committed as a
+regression seed.
 
 ## Running the eval scorecard
 

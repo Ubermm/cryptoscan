@@ -117,6 +117,17 @@ func validExpectValue(v any) error {
 	}
 }
 
+// dupIDMsg renders a sensible duplicate-id error whether the collision is within
+// one fragment or spans two. Both branches share the same detection point, but
+// "in fragment #0 and fragment #0" reads as a bug, so a within-fragment dup is
+// phrased as a single-fragment repeat.
+func dupIDMsg(id, prev, src string) string {
+	if prev == src {
+		return fmt.Sprintf("%s declares id %q more than once", src, id)
+	}
+	return fmt.Sprintf("duplicate id %q (in %s and %s)", id, prev, src)
+}
+
 // Merge folds fragments into one Corpus. Duplicate asset or negative IDs across
 // fragments are a load error (docs/DESIGN.md §2).
 func Merge(fragments ...*Fragment) (*Corpus, error) {
@@ -133,7 +144,7 @@ func Merge(fragments ...*Fragment) (*Corpus, error) {
 				return nil, fmt.Errorf("corpus: %s has an asset with empty id", src)
 			}
 			if prev, dup := seen[a.ID]; dup {
-				return nil, fmt.Errorf("corpus: duplicate id %q (in %s and %s)", a.ID, prev, src)
+				return nil, fmt.Errorf("corpus: %s", dupIDMsg(a.ID, prev, src))
 			}
 			if a.Class == "" {
 				return nil, fmt.Errorf("corpus: asset %q (%s) has empty class", a.ID, src)
@@ -155,7 +166,7 @@ func Merge(fragments ...*Fragment) (*Corpus, error) {
 				return nil, fmt.Errorf("corpus: %s has a negative with empty id", src)
 			}
 			if prev, dup := seen[n.ID]; dup {
-				return nil, fmt.Errorf("corpus: duplicate id %q (in %s and %s)", n.ID, prev, src)
+				return nil, fmt.Errorf("corpus: %s", dupIDMsg(n.ID, prev, src))
 			}
 			seen[n.ID] = src
 			c.Negatives = append(c.Negatives, n)

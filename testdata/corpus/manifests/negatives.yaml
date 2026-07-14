@@ -53,3 +53,54 @@ negatives:
     note: >-
       Binary file with a .der extension and a tempting 0x30 0x82 SEQUENCE-like
       prefix followed by deterministic junk bytes; not valid DER.
+
+  - id: neg-prose-hostkey
+    path: negatives/prose-hostkey.txt
+    note: >-
+      Prose whose first line leads with "HostKey" ("HostKey algorithms are
+      important..."). Killed by sshd value-shape (value "algorithms" has no path
+      separator) and structure (< 2 distinct sshd keywords).
+
+  - id: neg-prose-ciphers
+    path: negatives/prose-ciphers.md
+    note: >-
+      Markdown prose leading with "Ciphers" ("Ciphers used during World War
+      II..."). Killed by sshd value-shape (a real Ciphers value is a single
+      comma-list argument; this line has many words) and structure (< 2 sshd
+      keywords).
+
+  - id: neg-prose-macs
+    path: negatives/prose-macs.txt
+    note: >-
+      Prose leading with "MACs" ("MACs are hardware network addresses."). Killed
+      by sshd value-shape (multi-word value is not a single algorithm list) and
+      structure (< 2 distinct sshd keywords).
+
+  - id: neg-prose-kex
+    path: negatives/prose-kex.rst
+    note: >-
+      reStructuredText prose leading with "KexAlgorithms". Killed by sshd
+      value-shape (multi-word value) and structure (< 2 distinct sshd keywords).
+
+  - id: neg-go-struct
+    path: negatives/tls_config.go
+    note: >-
+      Go source with a struct whose fields are named Ciphers/MACs/HostKey. Three
+      distinct sshd keywords appear, so structure passes, but NO crypto directive
+      validates: "[]string" fails the algorithm-name charset (brackets) and
+      "string" has no path separator, so the file is not claimed.
+
+  - id: neg-python-settings
+    path: negatives/settings.py
+    note: >-
+      Python class body with MinProtocol/CipherString attributes. Killed by
+      openssl detection: "class TLS:" is not an INI [section] header (file has
+      zero section headers) and the value is a quoted string, not an unquoted
+      protocol token.
+
+  - id: neg-gitconfig-tls
+    path: negatives/weird.gitconfig
+    note: >-
+      Git config containing a real [tls] INI section with MinProtocol = TLSv1.
+      Killed by the openssl pointer idiom: the [tls] section is not reachable
+      from an openssl_conf root key (there is none), so MinProtocol is inert.

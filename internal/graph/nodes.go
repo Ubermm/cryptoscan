@@ -424,6 +424,44 @@ func FileNodeID(path string) (string, error) {
 	return "file:" + filepath.Clean(abs), nil
 }
 
+// ServiceNodeID builds a Service node ID from its name (DESIGN.md §1:
+// `service:` + name), e.g. ServiceNodeID("nginx") -> "service:nginx".
+func ServiceNodeID(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", fmt.Errorf("graph: empty service name")
+	}
+	return "service:" + name, nil
+}
+
+// CryptoLibraryNodeID builds a CryptoLibrary node ID from its name and version
+// (DESIGN.md §1: `lib:` + name@version), e.g. CryptoLibraryNodeID("openssl",
+// "3.0.2") -> "lib:openssl@3.0.2". The name is required; an empty version is
+// permitted (an observed-but-unversioned library) and renders as "lib:name@".
+func CryptoLibraryNodeID(name, version string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", fmt.Errorf("graph: empty crypto library name")
+	}
+	return "lib:" + name + "@" + strings.TrimSpace(version), nil
+}
+
+// KMSEntryNodeID builds a KMSEntry node ID from its provider and key id
+// (DESIGN.md §1: `kms:` + provider + key id). Provider and key id are joined by
+// a colon, e.g. KMSEntryNodeID("aws-kms", "arn:...:key/abc") ->
+// "kms:aws-kms:arn:...:key/abc". Both parts are required.
+func KMSEntryNodeID(provider, keyID string) (string, error) {
+	provider = strings.TrimSpace(provider)
+	if provider == "" {
+		return "", fmt.Errorf("graph: empty KMS provider")
+	}
+	keyID = strings.TrimSpace(keyID)
+	if keyID == "" {
+		return "", fmt.Errorf("graph: empty KMS key id")
+	}
+	return "kms:" + provider + ":" + keyID, nil
+}
+
 // CANodeID builds a CA node ID from the DER SHA-256 of the observed CA cert.
 func CANodeID(derSHA256 string) (string, error) {
 	h, err := hexSHA256(derSHA256, "CA DER")

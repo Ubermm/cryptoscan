@@ -19,12 +19,20 @@ import (
 	"github.com/cryptoscan/cryptoscan/internal/graph"
 )
 
+// MaxFileSize is the shared per-file byte cap every filesystem scanner applies
+// before reading a candidate file. Any regular file larger than this is skipped
+// deterministically (never read into memory), so a pathological input cannot
+// exhaust memory during a walk. A certificate, key, CSR, keystore, or server
+// config is far smaller than this; 8 MiB is a fixed, documented ceiling shared
+// by the certs and config scanners so their skip behaviour is identical.
+const MaxFileSize = 8 << 20 // 8 MiB
+
 // Finding is a single cryptographic asset a scanner has proven to exist. The
 // keys of Attrs line up with the manifest `expect` keys (DESIGN.md §2), so the
 // eval matcher can compare them directly: algorithm, key_size, curve,
 // signature_algorithm, spki_sha256, subject_cn, self_signed, expired,
-// protocols, ciphers, cert_refs, host_key_types, kex_algorithms, macs,
-// min_protocol, cipher_string, and so on. Scanners may populate more attributes
+// protocols, ciphers, cert_refs, host_key_types, host_key_refs,
+// kex_algorithms, macs, min_protocol, cipher_string, and so on. Scanners may populate more attributes
 // than any asset declares; only declared keys are checked.
 type Finding struct {
 	// Class is the asset class (DESIGN.md §2): certificate, private_key,

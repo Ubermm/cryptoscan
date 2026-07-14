@@ -1,0 +1,12 @@
+# A git config that happens to contain a [tls] INI section. The config scanner
+# must not classify it as an openssl.cnf: the [tls] section is not reachable
+# from an openssl_conf root key (there is none), so its MinProtocol is inert.
+[user]
+	name = Example Developer
+	email = dev@example.com
+
+[tls]
+	MinProtocol = TLSv1
+
+[core]
+	autocrlf = input

@@ -1,0 +1,6 @@
+SSH host key management notes
+=============================
+
+HostKey algorithms are important for server security. When you rotate a
+server's identity, remember to distribute the new fingerprint to clients so
+they do not see a scary "host key changed" warning on the next connection.

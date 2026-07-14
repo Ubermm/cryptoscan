@@ -19,13 +19,6 @@ func newPhaseStub(use, short string, phase int) *cobra.Command {
 	}
 }
 
-// newFsCmd is the local filesystem scanner (Phase 1).
-func newFsCmd() *cobra.Command {
-	cmd := newPhaseStub("fs", "Scan a local filesystem path for cryptographic assets", 1)
-	cmd.Use = "fs <path>"
-	return cmd
-}
-
 // newProbeCmd is the network scanner (Phase 2).
 func newProbeCmd() *cobra.Command {
 	cmd := newPhaseStub("probe", "Probe a network endpoint's TLS configuration", 2)
