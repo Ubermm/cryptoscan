@@ -1,0 +1,99 @@
+name: action-selftest
+
+# Proves the composite action's end-to-end LOGIC on GitHub without needing a
+# published module. The real action installs cryptoscan with `go install
+# ...@version`; pre-release that module isn't on the proxy yet, so here we build
+# the binary from source and drive the EXACT command sequence action.yml runs.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  selftest:
+    name: action self-test (local build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          check-latest: true
+
+      - name: Build cryptoscan from source
+        run: |
+          set -euo pipefail
+          go build -o "$RUNNER_TEMP/cryptoscan" ./cmd/cryptoscan
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Sanity — version
+        run: cryptoscan version
+
+      # Step (c): emit the CBOM + evaluate policy, capturing the exit code
+      # without aborting the job (mirrors action.yml's scan step).
+      - name: Scan corpus (emit CBOM, evaluate policy)
+        id: scan
+        run: |
+          set +e
+          cryptoscan fs testdata/corpus \
+            --format cbom --output "$RUNNER_TEMP/cbom.json" \
+            --fail-on sha1,rsa1024,tls10
+          code=$?
+          set -e
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "scan exited $code"
+
+      # Step (d): auditor report → job summary.
+      - name: Job summary (auditor report)
+        if: always()
+        run: cryptoscan fs testdata/corpus --format report >> "$GITHUB_STEP_SUMMARY"
+
+      # Step (e): upload the CBOM artifact.
+      - name: Upload CBOM artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cryptoscan-cbom-selftest
+          path: ${{ runner.temp }}/cbom.json
+          if-no-files-found: error
+
+      # Assertions: the corpus MUST breach (sha1 + rsa1024 + tls10 present) → 4,
+      # and the generated CBOM must be valid JSON.
+      - name: Assert breach exit code is 4
+        run: |
+          set -euo pipefail
+          got='${{ steps.scan.outputs.code }}'
+          echo "captured scan code = $got"
+          if [ "$got" != "4" ]; then
+            echo "::error::expected policy breach exit 4 on the corpus, got $got"
+            exit 1
+          fi
+          echo "OK: corpus scan reported a policy breach (exit 4)."
+
+      - name: Assert CBOM is valid JSON
+        run: |
+          set -euo pipefail
+          python3 -c "import json,sys; json.load(open(sys.argv[1])); print('CBOM is valid JSON')" "$RUNNER_TEMP/cbom.json"
+
+      # A clean directory (no crypto assets) must NOT breach → exit 0.
+      - name: Assert a clean directory exits 0
+        run: |
+          set +e
+          mkdir -p "$RUNNER_TEMP/clean"
+          cryptoscan fs "$RUNNER_TEMP/clean" \
+            --format cbom --output "$RUNNER_TEMP/clean.cbom.json" \
+            --fail-on sha1,rsa1024,tls10
+          code=$?
+          set -e
+          echo "clean-dir scan code = $code"
+          if [ "$code" != "0" ]; then
+            echo "::error::expected clean directory to exit 0, got $code"
+            exit 1
+          fi
+          echo "OK: clean directory produced no breach (exit 0)."

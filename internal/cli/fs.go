@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/cryptoscan/cryptoscan/internal/graph"
+	"github.com/cryptoscan/cryptoscan/internal/policy"
+	"github.com/cryptoscan/cryptoscan/internal/pqc"
 	"github.com/cryptoscan/cryptoscan/internal/scan"
 )
 
@@ -24,6 +26,7 @@ import (
 func newFsCmd() *cobra.Command {
 	var quiet bool
 	var format, output string
+	var failOn []string
 	cmd := &cobra.Command{
 		Use:   "fs <path>",
 		Short: "Scan a local filesystem path for cryptographic assets",
@@ -35,22 +38,25 @@ func newFsCmd() *cobra.Command {
 			"emits a CycloneDX 1.6 CBOM (JSON); --format report / report-json emit the " +
 			"auditor report as Markdown / JSON. --output <file> writes there instead of " +
 			"stdout. --quiet shapes only the table summary.\n\n" +
+			failOnLongHelp +
 			"Limits: each regular file larger than 8 MiB is skipped without being " +
 			"read; directories, symlinks, and other non-regular files are not " +
 			"followed. Unreadable or malformed files are skipped silently and " +
-			"never abort the scan.",
+			"never abort the scan.\n\n" +
+			exitCodeLongHelp,
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// The command layer supplies the REAL clock once; the emitters and
 			// pqc.Score consume it (they never call time.Now themselves).
-			return runFs(cmd.OutOrStdout(), args[0], quiet, format, output, time.Now())
+			return runFs(cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0], quiet, format, output, failOn, time.Now())
 		},
 	}
 	f := cmd.Flags()
 	f.BoolVar(&quiet, "quiet", false, "print per-class counts only (table format only)")
 	f.StringVar(&format, "format", formatTable, scanFormatHelp)
 	f.StringVar(&output, "output", "", "write to this file instead of stdout")
+	f.StringSliceVar(&failOn, "fail-on", nil, failOnFlagHelp)
 	return cmd
 }
 
@@ -62,12 +68,18 @@ func newFsCmd() *cobra.Command {
 // Execute) on a bad --format, a --quiet+machine-format combination, a scan
 // failure, or an output-write failure; individual unreadable/malformed files are
 // skipped by the scanners themselves. It never panics.
-func runFs(stdout io.Writer, root string, quiet bool, format, output string, now time.Time) error {
+func runFs(stdout, stderr io.Writer, root string, quiet bool, format, output string, failOn []string, now time.Time) error {
 	format, err := normalizeScanFormat(format)
 	if err != nil {
 		return err
 	}
 	if err := checkQuietFormat(format, quiet); err != nil {
+		return err
+	}
+	// Parse the policy thresholds BEFORE scanning so an invalid --fail-on token
+	// fails fast as a usage error (exit 1) without doing any work.
+	thresholds, err := policy.ParseThresholds(failOn)
+	if err != nil {
 		return err
 	}
 
@@ -76,13 +88,28 @@ func runFs(stdout io.Writer, root string, quiet bool, format, output string, now
 		return err
 	}
 
-	return writeToDest(stdout, output, func(w io.Writer) error {
+	// Score once when either a machine format or the policy gate needs it, and
+	// share that single Report between the emitter and the gate.
+	var exposure pqc.Report
+	if format != formatTable || len(thresholds) > 0 {
+		exposure = pqc.Score(g, now)
+	}
+
+	// Emit the requested output FIRST — the report the user asked for is always
+	// written in full before the gate can fail.
+	if err := writeToDest(stdout, output, func(w io.Writer) error {
 		if format == formatTable {
 			renderFsTable(w, g, findings, resolved, quiet)
 			return nil
 		}
-		return emitGraphOutput(w, g, format, now)
-	})
+		return emitGraphOutput(w, g, exposure, format, now)
+	}); err != nil {
+		return err
+	}
+
+	// Then gate: a breach prints its summary to stderr and returns the sentinel
+	// (exit 4). Output already written above is never suppressed.
+	return gateOnPolicy(stderr, g, exposure, thresholds)
 }
 
 // renderFsTable writes the interim human summary (per-class counts, the findings

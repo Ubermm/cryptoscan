@@ -53,12 +53,13 @@ func checkQuietFormat(format string, quiet bool) error {
 
 // emitGraphOutput writes the machine-format projection (cbom | report |
 // report-json) of g to w. It is the single place the CLI supplies the REAL
-// clock: `now` is passed to pqc.Score AND into each emitter's injectable Options
-// (cbom Timestamp, report Now) so the libraries stay clock-free for tests while
-// the command provides wall time. The CBOM serial is left to the emitter's
-// deterministic content-based default (Options.SerialNumber unset).
-func emitGraphOutput(w io.Writer, g *graph.Graph, format string, now time.Time) error {
-	exposure := pqc.Score(g, now)
+// clock: `now` is passed into each emitter's injectable Options (cbom Timestamp,
+// report Now) so the libraries stay clock-free for tests while the command
+// provides wall time. The `exposure` is the pqc.Report the caller already
+// computed for g at `now` (computed once and shared with the `--fail-on` policy
+// gate). The CBOM serial is left to the emitter's deterministic content-based
+// default (Options.SerialNumber unset).
+func emitGraphOutput(w io.Writer, g *graph.Graph, exposure pqc.Report, format string, now time.Time) error {
 	switch format {
 	case formatCBOM:
 		return cbom.Write(w, g, exposure, cbom.Options{Timestamp: now})

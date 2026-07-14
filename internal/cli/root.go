@@ -16,6 +16,13 @@ import (
 // signal an exit code of 2 without printing a Go stack or usage text.
 var errNotImplemented = errors.New("not implemented yet")
 
+// errThresholdBreached is the sentinel returned by a scan command when its
+// `--fail-on` policy gate trips. The command has ALREADY written the breach
+// summary to stderr by the time it returns this, so Execute maps it straight to
+// the dedicated exit code 4 WITHOUT printing the generic "cryptoscan: ..."
+// prefix (which would double-report the failure).
+var errThresholdBreached = errors.New("policy threshold breached")
+
 // newRootCmd constructs the top-level cryptoscan command with all subcommands
 // registered.
 func newRootCmd() *cobra.Command {
@@ -46,18 +53,24 @@ func newRootCmd() *cobra.Command {
 // Execute builds the root command, runs it, and returns a process exit code.
 //
 //	0 = success
-//	1 = generic error
+//	1 = generic / operational / usage error
 //	2 = subcommand not implemented (phase stub)
+//	4 = a `--fail-on` policy threshold was breached (fs/probe)
 func Execute() int {
 	root := newRootCmd()
 	err := root.Execute()
-	if err == nil {
+	switch {
+	case err == nil:
 		return 0
-	}
-	if errors.Is(err, errNotImplemented) {
+	case errors.Is(err, errThresholdBreached):
+		// The command already wrote the breach summary to stderr; emit nothing
+		// more, just the dedicated exit code.
+		return 4
+	case errors.Is(err, errNotImplemented):
 		fmt.Fprintln(root.ErrOrStderr(), err)
 		return 2
+	default:
+		fmt.Fprintln(root.ErrOrStderr(), "cryptoscan:", err)
+		return 1
 	}
-	fmt.Fprintln(root.ErrOrStderr(), "cryptoscan:", err)
-	return 1
 }

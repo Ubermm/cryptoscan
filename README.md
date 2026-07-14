@@ -1,9 +1,9 @@
 # cryptoscan
 
-> ⚠️ **Pre-release — Phase 3.** The local filesystem scanner, the network
-> probe, and the output layer (CBOM, auditor report, PQC scoring, graph dump)
-> all work, but the CLI surface, flags, and output are still changing without
-> notice until v0.1.0. Not ready for production use.
+> ⚠️ **Pre-release — Phase 4.** The local filesystem scanner, the network
+> probe, the output layer (CBOM, auditor report, PQC scoring, graph dump), and
+> the GitHub composite action all work, but the CLI surface, flags, and output
+> are still changing without notice until v0.1.0. Not ready for production use.
 
 Open source cryptographic estate scanner. cryptoscan discovers cryptographic
 assets — certificates, TLS configurations, keys, and crypto API usage — across
@@ -95,20 +95,82 @@ tooling or visualization:
 ./cryptoscan graph /path/to/scan --format json > graph.json
 ```
 
+## GitHub Action
+
+cryptoscan ships a composite action (`action.yml` at the repo root) that scans a
+checked-out repository, uploads the CycloneDX 1.6 CBOM as a workflow artifact,
+writes the auditor report to the job summary, and can optionally fail the build
+on a crypto-policy breach.
+
+```yaml
+# .github/workflows/crypto.yml
+name: crypto
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  cryptoscan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cryptoscan/cryptoscan@main   # pin @vX once a release is tagged
+        with:
+          path: .
+          fail-on: sha1,rsa1024,tls10       # empty = report only, never fail
+```
+
+What it does, in order (so evidence is recorded even when the gate trips):
+
+1. Runs `cryptoscan fs <path> --format cbom` and captures the exit code
+   **without** aborting the job.
+2. Appends the Markdown auditor report (`--format report`) to the job summary
+   (`always()`).
+3. Uploads the CBOM JSON as an artifact (`always()`, when `upload-artifact` is
+   `true`).
+4. **Last**, fails the job if the scan reported a breach — so the artifact and
+   summary are already attached to the run.
+
+### Inputs
+
+| Input | Default | Description |
+| --- | --- | --- |
+| `path` | `.` | Directory to scan. |
+| `fail-on` | `""` | Comma-separated policy tokens; empty = report only, never fail. |
+| `version` | `latest` | cryptoscan version to `go install`. |
+| `cbom-path` | `cbom.json` | Where the CBOM JSON is written. |
+| `artifact-name` | `cryptoscan-cbom` | Uploaded artifact name. |
+| `upload-artifact` | `true` | Whether to upload the CBOM artifact. |
+
+Valid `fail-on` tokens: `tls10`, `tls11`, `ssl3`, `legacy-tls`, `sha1`, `md5`,
+`weak-signature`, `rsa1024`, `weak-key`, `expired`, `expiring`,
+`quantum-vulnerable`.
+
+### Exit-code / fail-on semantics
+
+`cryptoscan fs` always emits the requested output first, then exits **4** if any
+`--fail-on` threshold is breached (a breach summary is printed to stderr). Exit
+codes: **0** clean · **1** operational/usage error · **2** CLI-argument error ·
+**4** policy breach. The action distinguishes a breach (4) from an operational
+error (1) in the failing step's log, and surfaces the raw code as the
+`exit-code` output.
+
+> **Pre-release note.** The action installs cryptoscan with
+> `go install github.com/cryptoscan/cryptoscan/cmd/cryptoscan@<version>`, which
+> requires the module to be published to the Go proxy. Until a release is tagged
+> and the module is published, pin `@main` and let the action build from source,
+> or install the binary yourself. The `action-selftest.yml` workflow exercises
+> the exact command sequence against `testdata/corpus` using a **locally built**
+> binary, so the action's logic is proven end-to-end today.
+
 ## Not yet
 
-- **GitHub composite action / CI scorecard** — Phase 4.
+- **A tagged release + published module.** Consumers pin `@main` until then.
 
 The output layer (CycloneDX 1.6 CBOM, auditor report, PQC scoring, and the
-`graph` dump) is **done** as of Phase 3.
+`graph` dump) shipped in Phase 3, and the GitHub composite action in Phase 4.
 
 ### Known limitations
 
-- **CSRs surface as `public_key` in the graph projection.** The graph node model
-  doesn't yet carry CSR-ness, so a certificate-signing request resolves to a
-  public-key node in the CBOM/report graph projection. The eval harness still
-  classifies `csr` correctly at the finding level; only the graph-derived output
-  collapses it into `public_key`.
 - **`fs` and `probe` cover separate surfaces.** `graph`, CBOM, and report from
   `fs` describe filesystem assets; `probe` describes network assets. A single
   combined estate scan across both surfaces in one invocation (with the

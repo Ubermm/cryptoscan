@@ -50,13 +50,12 @@ jobs:
         with:
           go-version: "1.26"
           check-latest: true
-      - name: Run eval scorecard (if present)
+      - name: Run eval scorecard
         run: |
-          if [ -d ./cmd/eval ]; then
-            echo "## cryptoscan eval scorecard" >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-            go run ./cmd/eval | tee -a "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "cmd/eval not present yet (lands in Phase 0); skipping scorecard." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          set -euo pipefail
+          echo "## cryptoscan eval scorecard" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          # go run exits non-zero if any class falls below the 0.95 precision
+          # ship gate, failing this job; pipefail propagates that through tee.
+          go run ./cmd/eval | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

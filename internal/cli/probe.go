@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/cryptoscan/cryptoscan/internal/graph"
+	"github.com/cryptoscan/cryptoscan/internal/policy"
+	"github.com/cryptoscan/cryptoscan/internal/pqc"
 	"github.com/cryptoscan/cryptoscan/internal/probe"
 
 	// Blank-import the concrete probers so their init() functions register them
@@ -54,14 +56,17 @@ func newProbeCmd() *cobra.Command {
 			"prober would simply record a non-matching-service error.\n\n" +
 			"No trust validation is performed: the presented TLS chain and the advertised\n" +
 			"SSH algorithms are RECORDED, not judged. Nothing is authenticated.\n\n" +
-			"Exit status is 0 when at least one target was probed, and 1 on a usage error\n" +
-			"or when no target could be probed at all.",
+			failOnLongHelp +
+			"Exit status is 0 when at least one target was probed, 1 on a usage error or\n" +
+			"when no target could be probed at all, and 4 when a --fail-on policy threshold\n" +
+			"is breached (see exit codes below).\n\n" +
+			exitCodeLongHelp,
 		Args:         cobra.ArbitraryArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// The command layer supplies the REAL clock once; the emitters and
 			// pqc.Score consume it (they never call time.Now themselves).
-			return runProbe(cmd.OutOrStdout(), args, opts, time.Now())
+			return runProbe(cmd.OutOrStdout(), cmd.ErrOrStderr(), args, opts, time.Now())
 		},
 	}
 	f := cmd.Flags()
@@ -73,6 +78,7 @@ func newProbeCmd() *cobra.Command {
 	f.BoolVar(&opts.verbose, "verbose", false, "list every per-target probe error in full")
 	f.StringVar(&opts.format, "format", formatTable, scanFormatHelp)
 	f.StringVar(&opts.output, "output", "", "write to this file instead of stdout")
+	f.StringSliceVar(&opts.failOn, "fail-on", nil, failOnFlagHelp)
 	return cmd
 }
 
@@ -86,6 +92,7 @@ type probeCmdOptions struct {
 	verbose     bool
 	format      string
 	output      string
+	failOn      []string
 }
 
 // runProbe gathers the targets, runs every registered prober against them into
@@ -94,12 +101,18 @@ type probeCmdOptions struct {
 // target, an unreadable targets file — or when NO target could be probed at all
 // (every prober failed against every target). A target reachable by one prober
 // but not the other is a success; the non-matching prober's error is expected.
-func runProbe(stdout io.Writer, args []string, opts probeCmdOptions, now time.Time) error {
+func runProbe(stdout, stderr io.Writer, args []string, opts probeCmdOptions, now time.Time) error {
 	format, err := normalizeScanFormat(opts.format)
 	if err != nil {
 		return err
 	}
 	if err := checkQuietFormat(format, opts.quiet); err != nil {
+		return err
+	}
+	// Parse the policy thresholds BEFORE probing so an invalid --fail-on token
+	// fails fast as a usage error (exit 1) without touching the network.
+	thresholds, err := policy.ParseThresholds(opts.failOn)
+	if err != nil {
 		return err
 	}
 
@@ -122,7 +135,7 @@ func runProbe(stdout io.Writer, args []string, opts probeCmdOptions, now time.Ti
 	}
 
 	if format == formatTable {
-		return writeToDest(stdout, opts.output, func(w io.Writer) error {
+		if err := writeToDest(stdout, opts.output, func(w io.Writer) error {
 			writeClassCounts(w, res.Findings)
 			if !opts.quiet {
 				writeProbeFindingsTable(w, res.Findings)
@@ -138,7 +151,14 @@ func runProbe(stdout io.Writer, args []string, opts probeCmdOptions, now time.Ti
 				return fmt.Errorf("no target could be probed (%d probe error(s) across %d target(s))", len(res.Errors), len(targets))
 			}
 			return nil
-		})
+		}); err != nil {
+			return err
+		}
+		// Output written; gate after it (a breach prints to stderr, exit 4).
+		if len(thresholds) == 0 {
+			return nil
+		}
+		return gateOnPolicy(stderr, g, pqc.Score(g, now), thresholds)
 	}
 
 	// Machine formats: a probe that reached nothing at all is an error, not an
@@ -146,9 +166,14 @@ func runProbe(stdout io.Writer, args []string, opts probeCmdOptions, now time.Ti
 	if len(res.Findings) == 0 {
 		return fmt.Errorf("no target could be probed (%d probe error(s) across %d target(s))", len(res.Errors), len(targets))
 	}
-	return writeToDest(stdout, opts.output, func(w io.Writer) error {
-		return emitGraphOutput(w, g, format, now)
-	})
+	// Score once and share it between the emitter and the policy gate.
+	exposure := pqc.Score(g, now)
+	if err := writeToDest(stdout, opts.output, func(w io.Writer) error {
+		return emitGraphOutput(w, g, exposure, format, now)
+	}); err != nil {
+		return err
+	}
+	return gateOnPolicy(stderr, g, exposure, thresholds)
 }
 
 // gatherTargets parses the positional args (if any) then the --targets-file (if

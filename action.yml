@@ -1,0 +1,128 @@
+name: "cryptoscan"
+description: >-
+  Scan a repository for cryptographic assets, publish a CycloneDX 1.6 CBOM
+  artifact and a PQC-readiness job summary, and optionally fail the build on a
+  crypto-policy breach.
+author: "cryptoscan"
+
+branding:
+  icon: "shield"
+  color: "purple"
+
+inputs:
+  path:
+    description: "Directory to scan (relative to the workspace)."
+    required: false
+    default: "."
+  fail-on:
+    description: >-
+      Comma-separated policy tokens; the job fails (after recording the CBOM and
+      summary) if any threshold is breached. Empty = report only, never fail.
+      Valid tokens: tls10, tls11, ssl3, legacy-tls, sha1, md5, weak-signature,
+      rsa1024, weak-key, expired, expiring, quantum-vulnerable.
+    required: false
+    default: ""
+  version:
+    description: >-
+      cryptoscan version to install via `go install ...@<version>` (e.g. v0.1.0,
+      or 'latest'). Requires the module to be published — see README.
+    required: false
+    default: "latest"
+  cbom-path:
+    description: "Path where the CycloneDX 1.6 CBOM JSON is written."
+    required: false
+    default: "cbom.json"
+  artifact-name:
+    description: "Name of the uploaded CBOM artifact."
+    required: false
+    default: "cryptoscan-cbom"
+  upload-artifact:
+    description: "Whether to upload the CBOM as a workflow artifact."
+    required: false
+    default: "true"
+
+outputs:
+  cbom-path:
+    description: "Path to the generated CBOM JSON file."
+    value: ${{ inputs.cbom-path }}
+  exit-code:
+    description: >-
+      Raw cryptoscan exit code from the scan step: 0 clean, 1 operational error,
+      4 policy breach.
+    value: ${{ steps.scan.outputs.code }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: "1.26"
+        check-latest: true
+
+    - name: Install cryptoscan
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "Installing cryptoscan@${{ inputs.version }} ..."
+        go install "github.com/cryptoscan/cryptoscan/cmd/cryptoscan@${{ inputs.version }}"
+        # setup-go puts $(go env GOPATH)/bin on PATH, so the binary is callable.
+        cryptoscan version
+
+    - name: Scan (emit CBOM, evaluate policy)
+      id: scan
+      shell: bash
+      run: |
+        # Capture the exit code WITHOUT aborting the job, so the CBOM artifact and
+        # job summary are still recorded before we (optionally) fail at the end.
+        set +e
+        scan_path='${{ inputs.path }}'
+        cbom='${{ inputs.cbom-path }}'
+        failon='${{ inputs.fail-on }}'
+        if [ -n "$failon" ]; then
+          cryptoscan fs "$scan_path" --format cbom --output "$cbom" --fail-on "$failon"
+        else
+          cryptoscan fs "$scan_path" --format cbom --output "$cbom"
+        fi
+        code=$?
+        set -e
+        echo "code=$code" >> "$GITHUB_OUTPUT"
+        echo "cryptoscan scan exited with code $code"
+
+    - name: Job summary (auditor report)
+      if: always()
+      shell: bash
+      run: |
+        set -euo pipefail
+        scan_path='${{ inputs.path }}'
+        # The Markdown auditor report renders as a table in the GitHub job summary.
+        cryptoscan fs "$scan_path" --format report >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Upload CBOM artifact
+      if: always() && inputs.upload-artifact == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.cbom-path }}
+        if-no-files-found: warn
+
+    - name: Enforce policy gate
+      if: always()
+      shell: bash
+      run: |
+        # Runs LAST: the artifact + summary are already recorded above, so a
+        # breach fails the job without hiding the evidence.
+        code='${{ steps.scan.outputs.code }}'
+        case "$code" in
+          0)
+            echo "cryptoscan: no policy breach (exit 0)."
+            ;;
+          4)
+            echo "::error title=cryptoscan policy breach::A crypto-policy threshold was breached (--fail-on '${{ inputs.fail-on }}'). See the job summary and the '${{ inputs.artifact-name }}' CBOM artifact."
+            exit 4
+            ;;
+          *)
+            echo "::error title=cryptoscan operational error::cryptoscan exited with code $code (not a policy breach). Check the scan step log."
+            exit "$code"
+            ;;
+        esac
