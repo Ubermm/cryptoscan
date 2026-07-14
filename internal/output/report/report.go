@@ -30,8 +30,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/pqc"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/pqc"
 )
 
 // DefaultTitle is the Markdown report heading used when Options.Title is empty.

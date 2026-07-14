@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/graph"
 )
 
 // fakeProber is a scriptable Prober for exercising Run offline. It records

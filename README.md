@@ -137,7 +137,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: cryptoscan/cryptoscan@main   # pin @vX once a release is tagged
+      - uses: Ubermm/cryptoscan@main   # pin @vX once a release is tagged
         with:
           path: .
           fail-on: sha1,rsa1024,tls10       # empty = report only, never fail
@@ -180,7 +180,7 @@ error (1) in the failing step's log, and surfaces the raw code as the
 `exit-code` output.
 
 > **Pre-release note.** The action installs cryptoscan with
-> `go install github.com/cryptoscan/cryptoscan/cmd/cryptoscan@<version>`, which
+> `go install github.com/Ubermm/cryptoscan/cmd/cryptoscan@<version>`, which
 > requires the module to be published to the Go proxy. Until a release is tagged
 > and the module is published, pin `@main` and let the action build from source,
 > or install the binary yourself. The `action-selftest.yml` workflow exercises

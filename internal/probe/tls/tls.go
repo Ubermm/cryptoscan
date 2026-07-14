@@ -38,10 +38,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/probe"
-	"github.com/cryptoscan/cryptoscan/internal/probe/netutil"
-	"github.com/cryptoscan/cryptoscan/internal/scan/certs"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/probe"
+	"github.com/Ubermm/cryptoscan/internal/probe/netutil"
+	"github.com/Ubermm/cryptoscan/internal/scan/certs"
 )
 
 // init registers the default TLS prober so a blank import (from the CLI) makes

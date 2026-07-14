@@ -25,7 +25,7 @@ Requirements:
 Clone and build:
 
 ```sh
-git clone https://github.com/cryptoscan/cryptoscan
+git clone https://github.com/Ubermm/cryptoscan
 cd cryptoscan
 go build ./...
 ```

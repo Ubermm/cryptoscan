@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/probe"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/probe"
 )
 
 // This file drives `cryptoscan probe` end-to-end against in-process TLS and SSH

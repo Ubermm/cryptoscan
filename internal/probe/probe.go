@@ -39,8 +39,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/scan"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/scan"
 )
 
 // Finding is the projection type a prober returns for each proven network

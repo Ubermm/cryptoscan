@@ -21,8 +21,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/scan"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/scan"
 )
 
 // maxFileSize caps the bytes read per candidate file. A single certificate,

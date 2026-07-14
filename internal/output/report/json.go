@@ -6,8 +6,8 @@ import (
 	"io"
 	"sort"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/pqc"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/pqc"
 )
 
 // jsonReport is the top-level JSON document:

@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/output/cbom"
-	"github.com/cryptoscan/cryptoscan/internal/output/report"
-	"github.com/cryptoscan/cryptoscan/internal/pqc"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/output/cbom"
+	"github.com/Ubermm/cryptoscan/internal/output/report"
+	"github.com/Ubermm/cryptoscan/internal/pqc"
 )
 
 // Output-format tokens shared by the `fs` and `probe` commands. `table` is each

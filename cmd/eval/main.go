@@ -21,16 +21,16 @@ import (
 	"io"
 	"os"
 
-	"github.com/cryptoscan/cryptoscan/internal/corpus"
-	"github.com/cryptoscan/cryptoscan/internal/eval"
-	"github.com/cryptoscan/cryptoscan/internal/scan"
+	"github.com/Ubermm/cryptoscan/internal/corpus"
+	"github.com/Ubermm/cryptoscan/internal/eval"
+	"github.com/Ubermm/cryptoscan/internal/scan"
 
 	// Blank imports register the Phase 1 filesystem scanners in the scan
 	// registry (via their package init) so scan.All() exercises them. These are
 	// imported directly here — NOT transitively through internal/cli — so the
 	// eval harness has no dependency on the CLI layer.
-	_ "github.com/cryptoscan/cryptoscan/internal/scan/certs"
-	_ "github.com/cryptoscan/cryptoscan/internal/scan/config"
+	_ "github.com/Ubermm/cryptoscan/internal/scan/certs"
+	_ "github.com/Ubermm/cryptoscan/internal/scan/config"
 )
 
 func main() {

@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/output/report"
-	"github.com/cryptoscan/cryptoscan/internal/pqc"
-	"github.com/cryptoscan/cryptoscan/internal/scan/certs"
-	"github.com/cryptoscan/cryptoscan/internal/scan/config"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/output/report"
+	"github.com/Ubermm/cryptoscan/internal/pqc"
+	"github.com/Ubermm/cryptoscan/internal/scan/certs"
+	"github.com/Ubermm/cryptoscan/internal/scan/config"
 )
 
 var update = flag.Bool("update", false, "update golden files")

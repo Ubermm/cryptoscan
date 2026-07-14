@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/scan/certs"
-	"github.com/cryptoscan/cryptoscan/internal/scan/config"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/scan/certs"
+	"github.com/Ubermm/cryptoscan/internal/scan/config"
 )
 
 // corpusRoot locates the ground-truth corpus relative to this package.

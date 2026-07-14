@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/graph"
 )
 
 // quantumVulnerableAlgorithms is the DESIGN.md §5 set of asymmetric primitives

@@ -3,7 +3,7 @@ package config
 import (
 	"strings"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/graph"
 )
 
 // haproxyBase is the protocol range HAProxy enables by default in modern builds

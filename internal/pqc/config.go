@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/graph"
 )
 
 // configLegacy reports whether a tls_config ConfigFile node admits a protocol

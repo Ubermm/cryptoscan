@@ -5,7 +5,7 @@ package main
 import (
 	"os"
 
-	"github.com/cryptoscan/cryptoscan/internal/cli"
+	"github.com/Ubermm/cryptoscan/internal/cli"
 )
 
 func main() {

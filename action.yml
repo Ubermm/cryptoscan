@@ -65,7 +65,7 @@ runs:
       run: |
         set -euo pipefail
         echo "Installing cryptoscan@${{ inputs.version }} ..."
-        go install "github.com/cryptoscan/cryptoscan/cmd/cryptoscan@${{ inputs.version }}"
+        go install "github.com/Ubermm/cryptoscan/cmd/cryptoscan@${{ inputs.version }}"
         # setup-go puts $(go env GOPATH)/bin on PATH, so the binary is callable.
         cryptoscan version
 

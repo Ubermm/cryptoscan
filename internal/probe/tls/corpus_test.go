@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/probe"
-	"github.com/cryptoscan/cryptoscan/internal/scan/certs"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/probe"
+	"github.com/Ubermm/cryptoscan/internal/scan/certs"
 )
 
 // These are the two INTEGRATION-level entity-resolution assertions the DESIGN

@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"math/big"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/scan"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/scan"
 )
 
 // mkFinding builds a scan.Finding with a single provenance record.

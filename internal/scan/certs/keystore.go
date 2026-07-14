@@ -5,7 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/graph"
 	keystore "github.com/pavlo-v-chernykh/keystore-go/v4"
 	pkcs12 "software.sslmate.com/src/go-pkcs12"
 )

@@ -1,4 +1,4 @@
-module github.com/cryptoscan/cryptoscan
+module github.com/Ubermm/cryptoscan
 
 go 1.26
 

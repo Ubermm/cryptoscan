@@ -3,7 +3,7 @@ package config
 import (
 	"strings"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/graph"
 )
 
 // apacheLine is one logical directive line (after comment stripping and

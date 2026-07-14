@@ -3,7 +3,7 @@ package config
 import (
 	"strings"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/graph"
 )
 
 // nginxStatement is one directive: its whitespace-separated words and the line

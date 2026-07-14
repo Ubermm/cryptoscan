@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/pqc"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/pqc"
 )
 
 // tokenSpec is one entry in the token vocabulary: its canonical name, a one-line

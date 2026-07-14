@@ -8,7 +8,7 @@ import (
 
 // version is the binary version string. It is overridable at build time via:
 //
-//	go build -ldflags "-X github.com/cryptoscan/cryptoscan/internal/cli.version=v1.2.3"
+//	go build -ldflags "-X github.com/Ubermm/cryptoscan/internal/cli.version=v1.2.3"
 var version = "v0.1.0-dev"
 
 // newVersionCmd prints the cryptoscan version and exits.

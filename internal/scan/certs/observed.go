@@ -3,7 +3,7 @@ package certs
 import (
 	"crypto/x509"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/graph"
 )
 
 // ObservedCert is the strict, deterministic projection of a single presented

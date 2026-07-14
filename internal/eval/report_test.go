@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cryptoscan/cryptoscan/internal/corpus"
-	"github.com/cryptoscan/cryptoscan/internal/scan"
+	"github.com/Ubermm/cryptoscan/internal/corpus"
+	"github.com/Ubermm/cryptoscan/internal/scan"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files with current output")

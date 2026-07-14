@@ -12,11 +12,11 @@ import (
 
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/output/cbom"
-	"github.com/cryptoscan/cryptoscan/internal/pqc"
-	"github.com/cryptoscan/cryptoscan/internal/scan/certs"
-	"github.com/cryptoscan/cryptoscan/internal/scan/config"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/output/cbom"
+	"github.com/Ubermm/cryptoscan/internal/pqc"
+	"github.com/Ubermm/cryptoscan/internal/scan/certs"
+	"github.com/Ubermm/cryptoscan/internal/scan/config"
 )
 
 var update = flag.Bool("update", false, "update golden files")

@@ -10,10 +10,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/policy"
-	"github.com/cryptoscan/cryptoscan/internal/pqc"
-	"github.com/cryptoscan/cryptoscan/internal/scan"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/policy"
+	"github.com/Ubermm/cryptoscan/internal/pqc"
+	"github.com/Ubermm/cryptoscan/internal/scan"
 )
 
 // newFsCmd is the local filesystem scanner (Phase 1). It runs the certificate/

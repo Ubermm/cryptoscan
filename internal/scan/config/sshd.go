@@ -3,7 +3,7 @@ package config
 import (
 	"strings"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/graph"
 )
 
 // sshdKeywords is the recognised sshd_config(5) option vocabulary (OpenSSH),

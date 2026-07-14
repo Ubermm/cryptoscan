@@ -85,8 +85,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/scan"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/scan"
 )
 
 // maxConfigSize caps the bytes a single file may have before it is skipped, so

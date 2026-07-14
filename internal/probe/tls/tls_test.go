@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/probe"
-	"github.com/cryptoscan/cryptoscan/internal/scan/certs"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/probe"
+	"github.com/Ubermm/cryptoscan/internal/scan/certs"
 )
 
 // newTestProber returns a ready-to-use Prober. Rate limiting and timeouts are the

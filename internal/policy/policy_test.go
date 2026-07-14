@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/pqc"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/pqc"
 )
 
 // refNow is the fixed reference time used for every test so expiry flags are

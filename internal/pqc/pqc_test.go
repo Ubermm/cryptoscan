@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/graph"
 )
 
 // unitNow is a fixed reference time for the synthetic-graph edge-case tests.

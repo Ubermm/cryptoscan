@@ -60,7 +60,7 @@ scorecard table. **No phase ships below 0.95 precision on its asset class.**
 
 ## Repo conventions
 
-- Go module: `github.com/cryptoscan/cryptoscan` (placeholder until org is fixed)
+- Go module: `github.com/Ubermm/cryptoscan`
 - Layout: `cmd/cryptoscan` (CLI), `cmd/eval` (scorecard harness),
   `internal/graph` (node/edge model + entity resolution),
   `internal/scan/...` (scanners), `internal/output/...` (emitters),

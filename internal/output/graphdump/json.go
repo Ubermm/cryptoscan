@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/graph"
 )
 
 // jsonNode is the stable on-disk shape of a graph node: its identity key, its

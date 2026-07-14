@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cryptoscan/cryptoscan/internal/corpus"
-	"github.com/cryptoscan/cryptoscan/internal/scan"
+	"github.com/Ubermm/cryptoscan/internal/corpus"
+	"github.com/Ubermm/cryptoscan/internal/scan"
 )
 
 // --- expectation matcher (DESIGN.md §2 semantics) ---

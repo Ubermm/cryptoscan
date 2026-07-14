@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cryptoscan/cryptoscan/internal/scan"
+	"github.com/Ubermm/cryptoscan/internal/scan"
 )
 
 // scanCorpus runs the scanner once and indexes findings by (class, path, alias)

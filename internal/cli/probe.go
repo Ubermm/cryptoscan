@@ -10,17 +10,17 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/policy"
-	"github.com/cryptoscan/cryptoscan/internal/pqc"
-	"github.com/cryptoscan/cryptoscan/internal/probe"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/policy"
+	"github.com/Ubermm/cryptoscan/internal/pqc"
+	"github.com/Ubermm/cryptoscan/internal/probe"
 
 	// Blank-import the concrete probers so their init() functions register them
 	// into the process-wide probe registry that probe.All() reads. The wiring
 	// lives HERE — the CLI is the single place that assembles the probe set — and
 	// is deliberately NOT pulled in transitively via cmd/eval.
-	_ "github.com/cryptoscan/cryptoscan/internal/probe/ssh"
-	_ "github.com/cryptoscan/cryptoscan/internal/probe/tls"
+	_ "github.com/Ubermm/cryptoscan/internal/probe/ssh"
+	_ "github.com/Ubermm/cryptoscan/internal/probe/tls"
 )
 
 const (

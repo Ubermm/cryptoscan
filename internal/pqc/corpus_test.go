@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/scan/certs"
-	"github.com/cryptoscan/cryptoscan/internal/scan/config"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/scan/certs"
+	"github.com/Ubermm/cryptoscan/internal/scan/config"
 )
 
 // corpusNow is the fixed reference time used for every corpus assertion. It sits

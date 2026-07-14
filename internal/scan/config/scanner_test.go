@@ -4,9 +4,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cryptoscan/cryptoscan/internal/corpus"
-	"github.com/cryptoscan/cryptoscan/internal/eval"
-	"github.com/cryptoscan/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/corpus"
+	"github.com/Ubermm/cryptoscan/internal/eval"
+	"github.com/Ubermm/cryptoscan/internal/graph"
 )
 
 // corpusRoot is the repo corpus relative to this package (internal/scan/config).

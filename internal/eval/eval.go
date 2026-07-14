@@ -16,8 +16,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cryptoscan/cryptoscan/internal/corpus"
-	"github.com/cryptoscan/cryptoscan/internal/scan"
+	"github.com/Ubermm/cryptoscan/internal/corpus"
+	"github.com/Ubermm/cryptoscan/internal/scan"
 )
 
 // precisionGate is the ship gate: no class with declared assets may score below

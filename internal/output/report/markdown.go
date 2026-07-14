@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/pqc"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/pqc"
 )
 
 // WriteMarkdown renders the auditor report for g and its pqc exposure to w as a

@@ -45,9 +45,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/probe"
-	"github.com/cryptoscan/cryptoscan/internal/probe/netutil"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/probe"
+	"github.com/Ubermm/cryptoscan/internal/probe/netutil"
 )
 
 // Banner-exchange limits (RFC 4253 §4.2). The identification string is capped at

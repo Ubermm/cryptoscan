@@ -7,11 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cryptoscan/cryptoscan/internal/graph"
-	"github.com/cryptoscan/cryptoscan/internal/output/graphdump"
-	"github.com/cryptoscan/cryptoscan/internal/scan"
-	"github.com/cryptoscan/cryptoscan/internal/scan/certs"
-	"github.com/cryptoscan/cryptoscan/internal/scan/config"
+	"github.com/Ubermm/cryptoscan/internal/graph"
+	"github.com/Ubermm/cryptoscan/internal/output/graphdump"
+	"github.com/Ubermm/cryptoscan/internal/scan"
+	"github.com/Ubermm/cryptoscan/internal/scan/certs"
+	"github.com/Ubermm/cryptoscan/internal/scan/config"
 )
 
 // scanFilesystem runs both Phase 1 filesystem scanners (certificate/key and
