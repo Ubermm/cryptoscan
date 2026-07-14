@@ -66,6 +66,37 @@ one. Directories, symlinks, and other non-regular files are not followed, and
 files with a NUL byte in their head are treated as binary and skipped by the
 config scanner. Skips are silent and never abort the walk.
 
+### Network probe contract (Phase 2)
+
+`cryptoscan probe` observes network surfaces; it probes ONLY explicitly
+listed targets (no subnet expansion, no discovery, no port scanning).
+Sane defaults: 5s per-connection timeout, bounded concurrency (default 8),
+a global rate limit; every value flag-overridable.
+
+Finding classes (probe findings use `Path` = `host:port`, Source `probe`):
+
+- `tls_endpoint` attrs: `negotiated_protocol`, `negotiated_cipher_suite`,
+  `alpn`, `protocols_supported` (list from per-version handshake
+  enumeration, TLS 1.0–1.3; spellings match §2: "TLSv1", "TLSv1.1", …),
+  `pqc_hybrid_kex` (bool: server accepts the X25519MLKEM768 group when it
+  is the only group offered), `peer_certs` count. The presented chain is
+  parsed with the same strict code path as the fs scanner.
+- `ssh_endpoint` attrs: `banner` (server version string), and from the
+  server's KEXINIT: `host_key_algorithms`, `kex_algorithms`, `ciphers`,
+  `macs`. Read deterministically from the wire preamble — no
+  authentication is attempted, nothing is sent beyond a client banner
+  and (if required to elicit KEXINIT) a client KEXINIT.
+
+Graph: one Endpoint node per host:port; `terminates_tls_for`
+Certificate → Endpoint for the leaf (chain certs get `issued_by` links);
+Certificate/Key nodes reuse the fs identity keys (DER SHA-256 / SPKI),
+so a cert seen at an endpoint and on disk is ONE node — the cross-surface
+entity-resolution promise.
+
+Testing: probes are verified against in-process TLS/SSH servers built
+from corpus fixtures (deterministic, offline). CI never probes live
+hosts. Wire-format parsers (SSH KEXINIT) are fuzzed like every parser.
+
 ## 2. Corpus & ground truth (`testdata/corpus/`)
 
 Layout:

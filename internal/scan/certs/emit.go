@@ -23,42 +23,20 @@ func mkFinding(class, path, alias string, attrs map[string]any, prov graph.Prove
 // emitCert records a certificate Finding and upserts its Certificate + Key
 // nodes and the signs_with / stored_in edges. The certRec is stashed for the
 // issuer-resolution post-pass.
+//
+// The cert→node/attrs work is delegated to UpsertCertGraph, the single code
+// path shared with the network prober, so a cert seen on disk and at an
+// endpoint can never drift to different identities (DESIGN.md §1). The fs
+// scanner adds the stored_in edge on top; the prober adds terminates_tls_for.
 func (r *run) emitCert(rel, alias string, prov graph.Provenance, der []byte, c *x509.Certificate) {
-	derSHA := hexSHA256(der)
-	attrs := certAttrs(c)
-	spki, _ := attrs["spki_sha256"].(string)
+	oc := observedFrom(der, c)
 
-	r.findings = append(r.findings, mkFinding("certificate", rel, alias, attrs, prov))
-	r.certs = append(r.certs, certRec{cert: c, derSHA: derSHA, prov: prov})
+	r.findings = append(r.findings, mkFinding("certificate", rel, alias, oc.Attrs, prov))
+	r.certs = append(r.certs, certRec{cert: c, derSHA: oc.DERSHA256, prov: prov})
 
-	// Certificate node.
-	certID, err := graph.CertNodeID(derSHA)
+	certID, _, err := UpsertCertGraph(r.g, oc, prov)
 	if err != nil {
 		return
-	}
-	cn := &graph.CertificateNode{
-		Subject:            c.Subject.String(),
-		Issuer:             c.Issuer.String(),
-		Serial:             serialString(c.SerialNumber),
-		Algorithm:          strAttr(attrs, "algorithm"),
-		KeySize:            intAttr(attrs, "key_size"),
-		SignatureAlgorithm: c.SignatureAlgorithm.String(),
-		NotBefore:          c.NotBefore,
-		NotAfter:           c.NotAfter,
-		SAN:                c.DNSNames,
-		SPKISHA256:         spki,
-		SelfSigned:         bytesEqual(c.RawIssuer, c.RawSubject),
-	}
-	cn.NodeID = certID
-	cn.AddProvenance(prov)
-	if _, err := r.g.UpsertNode(cn); err != nil {
-		return
-	}
-
-	// Key node + signs_with edge (Certificate → Key).
-	keyID := r.upsertKeyNode(spki, strAttr(attrs, "algorithm"), intAttr(attrs, "key_size"), strAttr(attrs, "curve"), true, false, prov)
-	if keyID != "" {
-		_, _ = r.g.AddEdge(graph.Edge{Type: graph.EdgeSignsWith, From: certID, To: keyID, Provenance: []graph.Provenance{prov}})
 	}
 	r.storedIn(certID, rel, prov)
 }
@@ -71,7 +49,7 @@ func (r *run) emitPrivateKey(rel, alias string, prov graph.Provenance, pub any) 
 		return
 	}
 	r.findings = append(r.findings, mkFinding("private_key", rel, alias, attrs, prov))
-	keyID := r.upsertKeyNode(strAttr(attrs, "spki_sha256"), strAttr(attrs, "algorithm"), intAttr(attrs, "key_size"), strAttr(attrs, "curve"), false, true, prov)
+	keyID := upsertKeyNode(r.g, strAttr(attrs, "spki_sha256"), strAttr(attrs, "algorithm"), intAttr(attrs, "key_size"), strAttr(attrs, "curve"), false, true, prov)
 	if keyID != "" {
 		r.storedIn(keyID, rel, prov)
 	}
@@ -85,7 +63,7 @@ func (r *run) emitPublicKey(rel, alias string, prov graph.Provenance, pub any) {
 		return
 	}
 	r.findings = append(r.findings, mkFinding("public_key", rel, alias, attrs, prov))
-	keyID := r.upsertKeyNode(strAttr(attrs, "spki_sha256"), strAttr(attrs, "algorithm"), intAttr(attrs, "key_size"), strAttr(attrs, "curve"), true, false, prov)
+	keyID := upsertKeyNode(r.g, strAttr(attrs, "spki_sha256"), strAttr(attrs, "algorithm"), intAttr(attrs, "key_size"), strAttr(attrs, "curve"), true, false, prov)
 	if keyID != "" {
 		r.storedIn(keyID, rel, prov)
 	}
@@ -107,16 +85,18 @@ func (r *run) emitCSR(rel, alias string, prov graph.Provenance, csr *x509.Certif
 	}
 	r.findings = append(r.findings, mkFinding("csr", rel, alias, attrs, prov))
 	if spki, ok := spkiSHA256FromPub(csr.PublicKey); ok {
-		keyID := r.upsertKeyNode(spki, strAttr(attrs, "algorithm"), intAttr(attrs, "key_size"), strAttr(attrs, "curve"), true, false, prov)
+		keyID := upsertKeyNode(r.g, spki, strAttr(attrs, "algorithm"), intAttr(attrs, "key_size"), strAttr(attrs, "curve"), true, false, prov)
 		if keyID != "" {
 			r.storedIn(keyID, rel, prov)
 		}
 	}
 }
 
-// upsertKeyNode merges a Key node identified by its SPKI SHA-256 and returns its
-// node ID (empty if the SPKI is invalid). Public/private observations union.
-func (r *run) upsertKeyNode(spki, algo string, size int, curve string, hasPublic, hasPrivate bool, prov graph.Provenance) string {
+// upsertKeyNode merges a Key node identified by its SPKI SHA-256 into g and
+// returns its node ID (empty if the SPKI is invalid). Public/private
+// observations union. It is a free function (not a *run method) so the network
+// prober shares the exact same Key-node code path as the fs scanner.
+func upsertKeyNode(g *graph.Graph, spki, algo string, size int, curve string, hasPublic, hasPrivate bool, prov graph.Provenance) string {
 	if spki == "" {
 		return ""
 	}
@@ -127,7 +107,7 @@ func (r *run) upsertKeyNode(spki, algo string, size int, curve string, hasPublic
 	kn := &graph.KeyNode{Algorithm: algo, KeySize: size, Curve: curve, HasPublic: hasPublic, HasPrivate: hasPrivate}
 	kn.NodeID = keyID
 	kn.AddProvenance(prov)
-	if _, err := r.g.UpsertNode(kn); err != nil {
+	if _, err := g.UpsertNode(kn); err != nil {
 		return ""
 	}
 	return keyID
@@ -170,4 +150,11 @@ func intAttr(m map[string]any, k string) int {
 		return v
 	}
 	return 0
+}
+
+func boolAttr(m map[string]any, k string) bool {
+	if v, ok := m[k].(bool); ok {
+		return v
+	}
+	return false
 }
