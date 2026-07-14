@@ -31,6 +31,7 @@ import (
 //	Endpoint       box            #c9f2d0  (green)
 //	Service        hexagon        #e3d7ff  (lavender)
 //	ConfigFile     note           #fff4c2  (yellow)
+//	ConfigEndpoint folder         #ffe08a  (amber)
 //	CryptoLibrary  tab            #d9d9d9  (grey)
 //	CA             doubleoctagon  #ffd0a8  (orange)
 //	KMSEntry       cylinder       #f8c6d8  (pink)
@@ -38,7 +39,8 @@ import (
 //
 // Node label lines: Certificate = "Certificate", subject CN, short DER hash;
 // Key = "Key", algorithm+size/curve, short SPKI hash; Endpoint = "Endpoint",
-// host:port; ConfigFile = "ConfigFile", base filename; CA = "CA", DN; Service,
+// host:port; ConfigFile = "ConfigFile", base filename; ConfigEndpoint =
+// "ConfigEndpoint", server_name + listen; CA = "CA", DN; Service,
 // CryptoLibrary, KMSEntry = type + their identity.
 func WriteDOT(w io.Writer, g *graph.Graph) error {
 	var b strings.Builder
@@ -102,6 +104,8 @@ func dotStyle(t graph.NodeType) (shape, color string) {
 		return "hexagon", "#e3d7ff"
 	case graph.NodeConfigFile:
 		return "note", "#fff4c2"
+	case graph.NodeConfigEndpoint:
+		return "folder", "#ffe08a"
 	case graph.NodeCryptoLibrary:
 		return "tab", "#d9d9d9"
 	case graph.NodeCA:
@@ -181,6 +185,21 @@ func nodeLabelParts(n graph.Node) []string {
 			base = filepath.Base(base)
 		}
 		return []string{"ConfigFile", base}
+	case *graph.ConfigEndpointNode:
+		sn := attrStrings(v.Attrs, "server_name")
+		listen := attrStrings(v.Attrs, "listen")
+		label := strings.Join(sn, ",")
+		if l := strings.Join(listen, ","); l != "" {
+			if label != "" {
+				label += " " + l
+			} else {
+				label = l
+			}
+		}
+		if label == "" {
+			label = strings.TrimPrefix(v.ID(), "cfgendpoint:")
+		}
+		return []string{"ConfigEndpoint", label}
 	case *graph.CryptoLibraryNode:
 		return []string{"CryptoLibrary", strings.TrimSpace(v.Name + "@" + v.Version)}
 	case *graph.CANode:
@@ -193,6 +212,25 @@ func nodeLabelParts(n graph.Node) []string {
 		return []string{"KMSEntry", strings.TrimSpace(v.Provider + ":" + v.KeyID)}
 	default:
 		return []string{string(n.Type()), n.ID()}
+	}
+}
+
+// attrStrings reads a []string attribute from a node's Attrs map, nil-safe and
+// tolerant of the []any shape a decoded map may carry.
+func attrStrings(m map[string]any, k string) []string {
+	switch v := m[k].(type) {
+	case []string:
+		return v
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, e := range v {
+			if s, ok := e.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	default:
+		return nil
 	}
 }
 

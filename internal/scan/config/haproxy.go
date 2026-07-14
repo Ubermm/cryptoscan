@@ -101,6 +101,7 @@ func parseHAProxy(text string) *parseResult {
 		attrs:      attrs,
 		directives: directives,
 		refs:       refs,
+		endpoints:  haproxyEndpoints(text),
 	}
 }
 

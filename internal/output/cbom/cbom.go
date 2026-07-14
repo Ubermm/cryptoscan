@@ -160,6 +160,8 @@ func build(g *graph.Graph, exposure pqc.Report, opts Options) *bom {
 			comps = append(comps, endpointComponent(v, expByNode))
 		case *graph.ConfigFileNode:
 			comps = append(comps, configComponent(v, expByNode))
+		case *graph.ConfigEndpointNode:
+			comps = append(comps, configEndpointComponent(v, expByNode))
 		case *graph.CANode:
 			comps = append(comps, caComponent(v))
 		}
@@ -356,6 +358,45 @@ func configComponent(f *graph.ConfigFileNode, exp map[string]pqc.NodeExposure) c
 	return comp
 }
 
+// configEndpointComponent projects a ConfigEndpoint node into a protocol
+// cryptographic-asset, mirroring how a probe Endpoint maps to a protocol
+// component (assetType "protocol", protocolProperties type "tls", the resolved
+// cipher list as cipherSuites). A `cryptoscan:config:endpoint`="true" marker plus
+// the block's server_name/listen and resolved protocols/cert_refs/dhparam/
+// ecdh_curve are carried as namespaced properties. Emitting this component keeps
+// every `references`/`stored_in` dependency ref that points at the endpoint bom-ref
+// resolvable to a real component (task E: no dangling refs).
+func configEndpointComponent(e *graph.ConfigEndpointNode, exp map[string]pqc.NodeExposure) component {
+	pp := &protocolProperties{Type: "tls"}
+	for _, c := range listAttr(e.Attrs, "ciphers") {
+		pp.CipherSuites = append(pp.CipherSuites, cipherSuite{Name: c})
+	}
+	props := []property{{Name: cfgNS + "endpoint", Value: "true"}}
+	props = appendListProp(props, cfgNS+"server_name", listAttr(e.Attrs, "server_name"))
+	props = appendListProp(props, cfgNS+"listen", listAttr(e.Attrs, "listen"))
+	props = appendListProp(props, tlsNS+"protocols_supported", listAttr(e.Attrs, "protocols"))
+	props = appendListProp(props, cfgNS+"cert_refs", listAttr(e.Attrs, "cert_refs"))
+	props = appendListProp(props, cfgNS+"ca_refs", listAttr(e.Attrs, "ca_refs"))
+	props = appendListProp(props, cfgNS+"trusted_refs", listAttr(e.Attrs, "trusted_refs"))
+	if s := strAttr(e.Attrs, "dhparam"); s != "" {
+		props = append(props, property{Name: cfgNS + "dhparam", Value: s})
+	}
+	if s := strAttr(e.Attrs, "ecdh_curve"); s != "" {
+		props = append(props, property{Name: cfgNS + "ecdh_curve", Value: s})
+	}
+	comp := component{
+		Type:   "cryptographic-asset",
+		BOMRef: e.ID(),
+		Name:   configEndpointName(e),
+		CryptoProperties: &cryptoProperties{
+			AssetType:          "protocol",
+			ProtocolProperties: pp,
+		},
+	}
+	comp.Properties = mergeProps(props, pqcProperties(exp, e.ID()))
+	return comp
+}
+
 // caComponent projects a CA node into a minimal certificate cryptographic-asset
 // carrying its distinguished name.
 func caComponent(c *graph.CANode) component {
@@ -400,7 +441,7 @@ func dependencies(g *graph.Graph) []dependency {
 	// Enumerate every first-class asset node.
 	for _, n := range g.Nodes() {
 		switch n.Type() {
-		case graph.NodeCertificate, graph.NodeCertificateRequest, graph.NodeKey, graph.NodeEndpoint, graph.NodeConfigFile, graph.NodeCA:
+		case graph.NodeCertificate, graph.NodeCertificateRequest, graph.NodeKey, graph.NodeEndpoint, graph.NodeConfigFile, graph.NodeConfigEndpoint, graph.NodeCA:
 			ensure(n.ID())
 		}
 	}

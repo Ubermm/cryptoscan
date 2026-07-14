@@ -41,6 +41,17 @@
 # nginx multi-block files: protocols is the UNION across all server blocks in
 #   the file (DESIGN keys expectations per file). Per-block detail is noted in
 #   the source file comments.
+#
+# Per-endpoint ground truth (endpoints:[]) -- the tls_config_endpoint class:
+#   Each entry declares ONE TLS-terminating block (nginx server{}, apache
+#   <VirtualHost>, haproxy `bind`). It is matched to an emitted ConfigEndpoint by
+#   server_name+port (nginx/apache) or by listen (haproxy binds have no
+#   server_name). The per-endpoint expect keys are the same as the file-level
+#   ones (protocols exact-set, ciphers_contains subset, cert_refs exact-set) plus
+#   ecdh_curve/dhparam scalars. This is per-endpoint ATTRIBUTION: a weak protocol
+#   is provable against THIS host:port, not merely the file. Every emitted TLS
+#   endpoint in the corpus is declared here; a plain-HTTP block (no ssl) emits no
+#   endpoint and is not declared.
 
 version: 1
 assets:
@@ -52,6 +63,14 @@ assets:
       protocols: [TLSv1, TLSv1.1, TLSv1.2]
       ciphers_contains: ["RC4-SHA", "DES-CBC3-SHA"]
       cert_refs: ["../../certs/rsa-2048-selfsigned.pem"]
+    endpoints:
+      - name: legacy-443
+        listen: "443"
+        server_name: legacy.example.com
+        expect:
+          protocols: [TLSv1, TLSv1.1, TLSv1.2]
+          ciphers_contains: ["RC4-SHA", "DES-CBC3-SHA"]
+          cert_refs: ["../../certs/rsa-2048-selfsigned.pem"]
 
   - id: nginx-modern
     class: tls_config
@@ -60,9 +79,20 @@ assets:
       protocols: [TLSv1.2, TLSv1.3]
       ciphers_contains: ["ECDHE-ECDSA-AES256-GCM-SHA384"]
       cert_refs: ["../../certs/ecdsa-p256.pem"]
+    endpoints:
+      - name: secure-443
+        listen: "443"
+        server_name: secure.example.com
+        expect:
+          protocols: [TLSv1.2, TLSv1.3]
+          ciphers_contains: ["ECDHE-ECDSA-AES256-GCM-SHA384"]
+          cert_refs: ["../../certs/ecdsa-p256.pem"]
+          ecdh_curve: "X25519:secp384r1"
 
-  # Multiple server blocks; protocols is the UNION (block A: TLSv1.2/1.3,
-  # block B: TLSv1/1.1/1.2, block C: no TLS).
+  # Multiple server blocks; the file-level protocols is the UNION (block A:
+  # TLSv1.2/1.3, block B: TLSv1/1.1/1.2, block C: no TLS). The endpoints below
+  # PROVE the attribution: TLS 1.0/1.1 belong to b.example.com:8443 ONLY, never
+  # to a.example.com:443. Block C (plain :80) emits no TLS endpoint.
   - id: nginx-multi-server
     class: tls_config
     path: configs/nginx/multi-server.conf
@@ -70,14 +100,38 @@ assets:
       protocols: [TLSv1, TLSv1.1, TLSv1.2, TLSv1.3]
       ciphers_contains: ["AES128-SHA"]
       cert_refs: ["../../certs/rsa-2048-selfsigned.pem"]
+    endpoints:
+      - name: a-modern
+        listen: "443"
+        server_name: a.example.com
+        expect:
+          protocols: [TLSv1.2, TLSv1.3]
+          ciphers_contains: ["ECDHE-RSA-AES256-GCM-SHA384"]
+          cert_refs: ["../../certs/rsa-2048-selfsigned.pem"]
+      - name: b-legacy
+        listen: "8443"
+        server_name: b.example.com
+        expect:
+          protocols: [TLSv1, TLSv1.1, TLSv1.2]
+          ciphers_contains: ["AES128-SHA"]
+          cert_refs: ["../../certs/rsa-2048-selfsigned.pem"]
 
   # Splits TLS config across an include; ssl_certificate lives here,
   # protocols/ciphers live in the included ssl-params.conf (own asset below).
+  # The endpoint proves include folding: its protocols come from ssl-params.conf.
   - id: nginx-with-include
     class: tls_config
     path: configs/nginx/with-include.conf
     expect:
       cert_refs: ["../../certs/leaf-chain.pem"]
+    endpoints:
+      - name: split-443
+        listen: "443"
+        server_name: split.example.com
+        expect:
+          protocols: [TLSv1.2, TLSv1.3]
+          ciphers_contains: ["ECDHE-ECDSA-AES256-GCM-SHA384"]
+          cert_refs: ["../../certs/leaf-chain.pem"]
 
   - id: nginx-ssl-params-include
     class: tls_config
@@ -95,6 +149,14 @@ assets:
       protocols: [TLSv1, TLSv1.1, TLSv1.2, TLSv1.3]
       ciphers_contains: ["RC4-SHA", "DES-CBC3-SHA"]
       cert_refs: ["../../certs/rsa-2048-selfsigned.pem"]
+    endpoints:
+      - name: legacy-443
+        listen: "*:443"
+        server_name: legacy.example.com
+        expect:
+          protocols: [TLSv1, TLSv1.1, TLSv1.2, TLSv1.3]
+          ciphers_contains: ["RC4-SHA", "DES-CBC3-SHA"]
+          cert_refs: ["../../certs/rsa-2048-selfsigned.pem"]
 
   - id: apache-modern
     class: tls_config
@@ -103,8 +165,17 @@ assets:
       protocols: [TLSv1.2, TLSv1.3]
       ciphers_contains: ["ECDHE-ECDSA-AES256-GCM-SHA384"]
       cert_refs: ["../../certs/ecdsa-p256.pem"]
+    endpoints:
+      - name: secure-443
+        listen: "*:443"
+        server_name: secure.example.com
+        expect:
+          protocols: [TLSv1.2, TLSv1.3]
+          ciphers_contains: ["ECDHE-ECDSA-AES256-GCM-SHA384"]
+          cert_refs: ["../../certs/ecdsa-p256.pem"]
 
-  # VirtualHost-heavy; single TLS vhost with "-all +TLSv1.2".
+  # VirtualHost-heavy; single TLS vhost with "-all +TLSv1.2". The three plain
+  # :80 vhosts emit no TLS endpoint.
   - id: apache-vhosts
     class: tls_config
     path: configs/apache/vhosts.conf
@@ -112,6 +183,14 @@ assets:
       protocols: [TLSv1.2]
       ciphers_contains: ["ECDHE-RSA-AES128-GCM-SHA256"]
       cert_refs: ["../../certs/leaf-chain.pem"]
+    endpoints:
+      - name: app-443
+        listen: "*:443"
+        server_name: app.example.com
+        expect:
+          protocols: [TLSv1.2]
+          ciphers_contains: ["ECDHE-RSA-AES128-GCM-SHA256"]
+          cert_refs: ["../../certs/leaf-chain.pem"]
 
   # ---- sshd_config (class ssh_config) ------------------------------------
   # ssh-specific expect keys (extend the DESIGN schema, snake_case):
@@ -189,6 +268,9 @@ assets:
       cipher_string: "DEFAULT:@SECLEVEL=0"
 
   # ---- haproxy -----------------------------------------------------------
+  # Two TLS binds on the same frontend (:443 and :8443); the plain :80 bind in
+  # legacy.cfg emits no endpoint. haproxy binds have no server_name -> matched by
+  # listen/port.
   - id: haproxy-modern
     class: tls_config
     path: configs/haproxy/modern.cfg
@@ -196,6 +278,19 @@ assets:
       protocols: [TLSv1.2, TLSv1.3]
       ciphers_contains: ["ECDHE-ECDSA-AES256-GCM-SHA384"]
       cert_refs: ["../../certs/leaf-chain.pem"]
+    endpoints:
+      - name: bind-443
+        listen: ":443"
+        expect:
+          protocols: [TLSv1.2, TLSv1.3]
+          ciphers_contains: ["ECDHE-ECDSA-AES256-GCM-SHA384"]
+          cert_refs: ["../../certs/leaf-chain.pem"]
+      - name: bind-8443
+        listen: ":8443"
+        expect:
+          protocols: [TLSv1.2, TLSv1.3]
+          ciphers_contains: ["ECDHE-ECDSA-AES256-GCM-SHA384"]
+          cert_refs: ["../../certs/leaf-chain.pem"]
 
   - id: haproxy-legacy
     class: tls_config
@@ -204,3 +299,10 @@ assets:
       protocols: [TLSv1, TLSv1.1, TLSv1.2, TLSv1.3]
       ciphers_contains: ["DES-CBC3-SHA"]
       cert_refs: ["../../certs/rsa-2048-selfsigned.pem"]
+    endpoints:
+      - name: bind-443
+        listen: ":443"
+        expect:
+          protocols: [TLSv1, TLSv1.1, TLSv1.2, TLSv1.3]
+          ciphers_contains: ["DES-CBC3-SHA"]
+          cert_refs: ["../../certs/rsa-2048-selfsigned.pem"]

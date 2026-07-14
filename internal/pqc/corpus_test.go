@@ -109,12 +109,14 @@ func TestScoreCorpusGroundTruth(t *testing.T) {
 		t.Errorf("Summary.Expiring = %d, want 0", s.Expiring)
 	}
 
-	// legacy_protocol: exactly the five sub-TLS-1.2 config fixtures.
-	if got := flagCount(s.ByFlag, FlagLegacyProtocol); got != 5 {
-		t.Errorf("legacy_protocol count = %d, want 5", got)
+	// legacy_protocol: the five curated sub-TLS-1.2 fixtures plus the two
+	// held-out real-world legacy configs (realworld/mixed-vhosts.conf,
+	// realworld/mozilla-old.conf) — all correctly flagged.
+	if got := flagCount(s.ByFlag, FlagLegacyProtocol); got != 7 {
+		t.Errorf("legacy_protocol count = %d, want 7", got)
 	}
-	if got := flagCount(s.ByNodeType, "ConfigFile"); got != 5 {
-		t.Errorf("flagged ConfigFile nodes = %d, want 5", got)
+	if got := flagCount(s.ByNodeType, "ConfigFile"); got != 7 {
+		t.Errorf("flagged ConfigFile nodes = %d, want 7", got)
 	}
 
 	// No probe endpoints in an fs-only graph.
@@ -177,11 +179,13 @@ func TestCorpusSpecificNodes(t *testing.T) {
 	}
 
 	wantLegacy := map[string]bool{
-		"configs/nginx/legacy.conf":       true,
-		"configs/nginx/multi-server.conf": true,
-		"configs/apache/legacy.conf":      true,
-		"configs/openssl/legacy.cnf":      true,
-		"configs/haproxy/legacy.cfg":      true,
+		"configs/nginx/legacy.conf":           true,
+		"configs/nginx/multi-server.conf":     true,
+		"configs/apache/legacy.conf":          true,
+		"configs/openssl/legacy.cnf":          true,
+		"configs/haproxy/legacy.cfg":          true,
+		"configs/realworld/mixed-vhosts.conf": true, // held-out real-world legacy
+		"configs/realworld/mozilla-old.conf":  true, // held-out real-world legacy
 	}
 	if !reflect.DeepEqual(legacyPaths, wantLegacy) {
 		t.Errorf("legacy configs = %v, want %v", keys(legacyPaths), keys(wantLegacy))

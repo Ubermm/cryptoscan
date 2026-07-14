@@ -189,6 +189,27 @@ func configName(f *graph.ConfigFileNode) string {
 	return f.ID()
 }
 
+// configEndpointName names a ConfigEndpoint by its server name(s) and listen
+// address, falling back to the file path + block index, then the node ID.
+func configEndpointName(e *graph.ConfigEndpointNode) string {
+	sn := listAttr(e.Attrs, "server_name")
+	lis := listAttr(e.Attrs, "listen")
+	name := strings.Join(sn, ",")
+	listen := strings.Join(lis, ",")
+	switch {
+	case name != "" && listen != "":
+		return name + " (" + listen + ")"
+	case name != "":
+		return name
+	case listen != "":
+		return listen
+	case e.Path != "":
+		return e.Path + "#" + strconv.Itoa(e.BlockIndex)
+	default:
+		return e.ID()
+	}
+}
+
 func caName(c *graph.CANode) string {
 	if cn := commonName(c.DN); cn != "" {
 		return cn

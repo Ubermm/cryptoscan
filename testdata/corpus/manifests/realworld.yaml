@@ -1,0 +1,92 @@
+# HELD-OUT real-world config test set. Ground truth declared by hand from config
+# semantics + authoritative sources (Mozilla SSL guidelines v5.7, real h5bp/
+# server-configs-nginx files), INDEPENDENT of what the parser emits.
+# The h5bp inc/*.conf files are verbatim third-party (h5bp/server-configs-nginx).
+version: 1
+assets:
+  # --- h5bp include snippets, detected as standalone tls_config files ---
+  - id: rw-inc-policy-strict
+    class: tls_config
+    path: configs/realworld/inc/policy_strict.conf
+    expect:
+      protocols: [TLSv1.2, TLSv1.3]
+  - id: rw-inc-policy-balanced
+    class: tls_config
+    path: configs/realworld/inc/policy_balanced.conf
+    expect:
+      protocols: [TLSv1.2]
+  - id: rw-inc-cert-files
+    class: tls_config
+    path: configs/realworld/inc/certificate_files.conf
+    # ssl_trusted_certificate / ssl_client_certificate are COMMENTED OUT -> must NOT appear
+    expect:
+      cert_refs: ["/etc/nginx/certs/default.crt"]
+
+  # --- Mozilla "old" profile: weak (TLS1.0/1.1, 3DES, 1024-bit dhparam) ---
+  - id: rw-mozilla-old
+    class: tls_config
+    path: configs/realworld/mozilla-old.conf
+    expect:
+      protocols: [TLSv1, TLSv1.1, TLSv1.2, TLSv1.3]
+      ciphers_contains: ["DES-CBC3-SHA"]
+    endpoints:
+      - name: compat-443
+        listen: "443"
+        server_name: compat.example.com
+        expect:
+          protocols: [TLSv1, TLSv1.1, TLSv1.2, TLSv1.3]
+          ciphers_contains: ["DES-CBC3-SHA"]
+          cert_refs: ["/etc/ssl/compat.crt"]
+
+  # --- h5bp-style deployment, TLS policy pulled via include ---
+  - id: rw-h5bp-sites
+    class: tls_config
+    path: configs/realworld/h5bp-sites.conf
+    endpoints:
+      - name: secure-443
+        listen: "443"
+        server_name: secure.example.com
+        expect:
+          protocols: [TLSv1.2, TLSv1.3]           # from include inc/policy_strict.conf
+          ciphers_contains: ["EECDH+CHACHA20"]
+          cert_refs: ["/etc/nginx/certs/default.crt"]  # from include inc/certificate_files.conf
+      - name: legacy-api-8443
+        listen: "8443"
+        server_name: legacy-api.example.com
+        expect:
+          protocols: [TLSv1.2]                     # from include inc/policy_balanced.conf
+          cert_refs: ["/etc/nginx/certs/api.crt"]
+
+  # --- mixed multi-vhost: ONLY the 8443 endpoint is legacy (attribution test) ---
+  - id: rw-mixed
+    class: tls_config
+    path: configs/realworld/mixed-vhosts.conf
+    expect:
+      protocols: [TLSv1, TLSv1.1, TLSv1.2, TLSv1.3]   # file union
+    endpoints:
+      - name: www-443
+        listen: "443"
+        server_name: www.example.com
+        expect:
+          protocols: [TLSv1.2, TLSv1.3]
+          cert_refs: ["/etc/ssl/www.crt"]
+      - name: legacy-8443
+        listen: "8443"
+        server_name: legacy.internal.example.com
+        expect:
+          protocols: [TLSv1, TLSv1.1, TLSv1.2]
+          cert_refs: ["/etc/ssl/legacy.crt"]
+
+  # --- Apache hardened vhost: DH via SSLOpenSSLConfCmd + mTLS CA trust ---
+  - id: rw-apache-secure
+    class: tls_config
+    path: configs/realworld/apache-secure.conf
+    expect:
+      protocols: [TLSv1.2, TLSv1.3]
+    endpoints:
+      - name: portal-443
+        listen: "443"
+        server_name: portal.example.com
+        expect:
+          protocols: [TLSv1.2, TLSv1.3]
+          cert_refs: ["/etc/apache2/portal.crt"]

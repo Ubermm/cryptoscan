@@ -23,14 +23,15 @@ import (
 
 	"github.com/Ubermm/cryptoscan/internal/corpus"
 	"github.com/Ubermm/cryptoscan/internal/eval"
+	"github.com/Ubermm/cryptoscan/internal/graph"
 	"github.com/Ubermm/cryptoscan/internal/scan"
+	"github.com/Ubermm/cryptoscan/internal/scan/config"
 
-	// Blank imports register the Phase 1 filesystem scanners in the scan
-	// registry (via their package init) so scan.All() exercises them. These are
-	// imported directly here — NOT transitively through internal/cli — so the
-	// eval harness has no dependency on the CLI layer.
+	// Blank import registers the certs filesystem scanner in the scan registry
+	// (via package init) so scan.All() exercises it. The config scanner is
+	// imported by name (below) both for registration and to populate a graph with
+	// ConfigEndpoint nodes for per-endpoint scoring.
 	_ "github.com/Ubermm/cryptoscan/internal/scan/certs"
-	_ "github.com/Ubermm/cryptoscan/internal/scan/config"
 )
 
 func main() {
@@ -70,7 +71,15 @@ func run(args []string, stdout, stderr io.Writer) int {
 		findings = append(findings, fnd...)
 	}
 
-	sc, err := eval.Score(c, findings, *strict)
+	// Populate a graph with the config scanner so its ConfigEndpoint nodes can be
+	// scored per-endpoint (the file-level findings above are scored as before).
+	emitted, err := emittedEndpoints(*corpusDir)
+	if err != nil {
+		fmt.Fprintf(stderr, "eval: %v\n", err)
+		return 2
+	}
+
+	sc, err := eval.ScoreAll(c, findings, emitted, *strict)
 	if err != nil {
 		fmt.Fprintf(stderr, "eval: %v\n", err)
 		return 2
@@ -91,6 +100,52 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 	if !sc.Gate.Pass {
 		return 1
+	}
+	return 0
+}
+
+// emittedEndpoints scans the corpus into a graph via the config scanner and
+// projects every ConfigEndpoint node into an eval.EmittedEndpoint for
+// per-endpoint scoring. It keeps the eval package free of a graph dependency.
+func emittedEndpoints(root string) ([]eval.EmittedEndpoint, error) {
+	g := graph.New()
+	if _, err := config.ScanIntoGraph(root, g); err != nil {
+		return nil, fmt.Errorf("config graph scan: %w", err)
+	}
+	var out []eval.EmittedEndpoint
+	for _, n := range g.Nodes() {
+		ep, ok := n.(*graph.ConfigEndpointNode)
+		if !ok {
+			continue
+		}
+		listens := attrStrList(ep.Attrs, "listen")
+		listen := ""
+		if len(listens) > 0 {
+			listen = listens[0]
+		}
+		out = append(out, eval.EmittedEndpoint{
+			File:        ep.Path,
+			ServerNames: attrStrList(ep.Attrs, "server_name"),
+			Listen:      listen,
+			Port:        attrInt(ep.Attrs, "port"),
+			Attrs:       ep.Attrs,
+		})
+	}
+	return out, nil
+}
+
+// attrStrList reads a []string attribute, nil-safe.
+func attrStrList(m map[string]any, k string) []string {
+	if v, ok := m[k].([]string); ok {
+		return v
+	}
+	return nil
+}
+
+// attrInt reads an int attribute, nil-safe.
+func attrInt(m map[string]any, k string) int {
+	if v, ok := m[k].(int); ok {
+		return v
 	}
 	return 0
 }

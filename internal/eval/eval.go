@@ -24,6 +24,11 @@ import (
 // this precision (DESIGN.md §3, CLAUDE.md "Definition of done").
 const precisionGate = 0.95
 
+// classAcc accumulates the per-class TP/FP/FN tallies during scoring.
+type classAcc struct {
+	expected, found, tp, fp, fn int
+}
+
 // Mismatch records one declared expectation that a matched finding failed to
 // satisfy. It turns an otherwise-located asset into a false negative
 // (DESIGN.md §3).
@@ -116,11 +121,38 @@ func matchKey(class, p, alias string) string {
 	return class + "\x00" + normPath(p) + "\x00" + alias
 }
 
-// Score matches findings against the corpus and computes the scorecard. strict
-// controls only the gate (recall shortfalls gate iff strict); the counts are
-// identical either way. It returns an error for malformed expectations or a
-// corpus that declares the same (class, path, alias) slot twice.
+// EndpointClass is the scorecard class name for per-endpoint (ConfigEndpoint)
+// attribution, scored separately from the file-level tls_config class.
+const EndpointClass = "tls_config_endpoint"
+
+// EmittedEndpoint is one ConfigEndpoint node projected for scoring: the config
+// file it belongs to, its identity (server names, listen, port), and its resolved
+// Attrs (protocols, ciphers, cert_refs, dhparam, ecdh_curve, ...). cmd/eval builds
+// these from the graph so the eval package stays free of a graph dependency.
+type EmittedEndpoint struct {
+	File        string
+	ServerNames []string
+	Listen      string
+	Port        int
+	Attrs       map[string]any
+}
+
+// Score matches findings against the corpus and computes the scorecard. It is the
+// file-level entry point (no per-endpoint scoring); ScoreAll folds in
+// ConfigEndpoint attribution. strict controls only the gate (recall shortfalls
+// gate iff strict); the counts are identical either way. It returns an error for
+// malformed expectations or a corpus that declares the same (class, path, alias)
+// slot twice.
 func Score(c *corpus.Corpus, findings []scan.Finding, strict bool) (*Scorecard, error) {
+	return ScoreAll(c, findings, nil, strict)
+}
+
+// ScoreAll is Score plus per-endpoint scoring: emitted ConfigEndpoint nodes are
+// matched against the endpoints:[] ground truth declared on tls_config assets and
+// tallied as the EndpointClass row (its own TP/FP/FN, precision/recall/F1, and it
+// participates in the ship gate). The file-level classes are scored exactly as
+// Score does. A nil emitted slice yields no EndpointClass row (identical to Score).
+func ScoreAll(c *corpus.Corpus, findings []scan.Finding, emitted []EmittedEndpoint, strict bool) (*Scorecard, error) {
 	if c == nil {
 		return nil, fmt.Errorf("eval: nil corpus")
 	}
@@ -145,14 +177,11 @@ func Score(c *corpus.Corpus, findings []scan.Finding, strict bool) (*Scorecard, 
 
 	// Per-class accumulators. classes tracks every class that has either a
 	// declared asset or an emitted finding, so FP-only classes still show up.
-	type acc struct {
-		expected, found, tp, fp, fn int
-	}
-	classes := map[string]*acc{}
-	get := func(class string) *acc {
+	classes := map[string]*classAcc{}
+	get := func(class string) *classAcc {
 		a := classes[class]
 		if a == nil {
-			a = &acc{}
+			a = &classAcc{}
 			classes[class] = a
 		}
 		return a
@@ -222,6 +251,13 @@ func Score(c *corpus.Corpus, findings []scan.Finding, strict bool) (*Scorecard, 
 		default:
 			ca.tp++
 		}
+	}
+
+	// Per-endpoint (ConfigEndpoint) scoring as its own EndpointClass row. Only
+	// evaluated when there are declared or emitted endpoints, so the plain Score
+	// path (emitted == nil, no endpoints declared) produces no extra class.
+	if err := scoreEndpoints(c, emitted, get, &fps, &fns); err != nil {
+		return nil, err
 	}
 
 	// Deterministic ordering of detail lists.
@@ -325,6 +361,137 @@ func f1(p, r float64) float64 {
 		return 0
 	}
 	return 2 * p * r / (p + r)
+}
+
+// declaredEndpoint is one endpoints:[] ground-truth entry flattened with its
+// owning asset's file path and a port parsed from its listen string.
+type declaredEndpoint struct {
+	id         string
+	file       string
+	serverName string
+	listen     string
+	port       int
+	expect     corpus.Expect
+}
+
+// scoreEndpoints tallies the EndpointClass row: each declared endpoint is matched
+// (by server_name+port, or by listen) against an emitted ConfigEndpoint and scored
+// TP/FN on its expectations; any emitted endpoint matching no declared endpoint is
+// an FP. It appends to fps/fns and updates the accumulator via get. When there are
+// neither declared nor emitted endpoints it does nothing (no EndpointClass row).
+func scoreEndpoints(c *corpus.Corpus, emitted []EmittedEndpoint, get func(string) *classAcc, fps *[]FalsePositive, fns *[]FalseNegative) error {
+	var declared []declaredEndpoint
+	for i := range c.Assets {
+		a := &c.Assets[i]
+		for j, ep := range a.Endpoints {
+			name := ep.Name
+			if name == "" {
+				name = strconv.Itoa(j)
+			}
+			declared = append(declared, declaredEndpoint{
+				id:         a.ID + "/" + name,
+				file:       a.Path,
+				serverName: ep.ServerName,
+				listen:     ep.Listen,
+				port:       parsePort(ep.Listen),
+				expect:     ep.Expect,
+			})
+		}
+	}
+	if len(declared) == 0 && len(emitted) == 0 {
+		return nil
+	}
+
+	ep := get(EndpointClass)
+	ep.expected = len(declared)
+	ep.found = len(emitted)
+
+	consumed := make([]bool, len(emitted))
+	for _, d := range declared {
+		matched := -1
+		for ei := range emitted {
+			if consumed[ei] {
+				continue
+			}
+			if endpointIdentityMatch(d, emitted[ei]) {
+				matched = ei
+				break
+			}
+		}
+		if matched < 0 {
+			ep.fn++
+			*fns = append(*fns, FalseNegative{ID: d.id, Class: EndpointClass, Path: normPath(d.file)})
+			continue
+		}
+		consumed[matched] = true
+		mm, err := checkExpect(d.expect, emitted[matched].Attrs)
+		if err != nil {
+			return fmt.Errorf("eval: endpoint %q: %w", d.id, err)
+		}
+		if len(mm) > 0 {
+			ep.fn++
+			*fns = append(*fns, FalseNegative{ID: d.id, Class: EndpointClass, Path: normPath(d.file), Mismatches: mm})
+		} else {
+			ep.tp++
+		}
+	}
+
+	for ei := range emitted {
+		if consumed[ei] {
+			continue
+		}
+		np := normPath(emitted[ei].File)
+		detail := "undeclared config endpoint"
+		if np == "negatives" || strings.HasPrefix(np, "negatives/") {
+			detail = "under negatives/"
+		}
+		ep.fp++
+		*fps = append(*fps, FalsePositive{Class: EndpointClass, Path: np, Detail: detail})
+	}
+	return nil
+}
+
+// endpointIdentityMatch reports whether a declared endpoint identifies the same
+// server/vhost/bind as an emitted ConfigEndpoint: same file, and either a
+// server_name+port match or (when neither is given) a listen-string match.
+func endpointIdentityMatch(d declaredEndpoint, e EmittedEndpoint) bool {
+	if normPath(d.file) != normPath(e.File) {
+		return false
+	}
+	if d.serverName != "" && !containsFold(e.ServerNames, d.serverName) {
+		return false
+	}
+	if d.port != 0 && e.Port != 0 && d.port != e.Port {
+		return false
+	}
+	if d.serverName == "" && d.port == 0 {
+		return d.listen != "" && d.listen == e.Listen
+	}
+	return true
+}
+
+// parsePort reads the numeric port after the final ':' of a listen token (or the
+// whole token when it is a bare port); 0 when none is present.
+func parsePort(token string) int {
+	s := token
+	if i := strings.LastIndex(token, ":"); i >= 0 {
+		s = token[i+1:]
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// containsFold reports whether list contains s, case-insensitively.
+func containsFold(list []string, s string) bool {
+	for _, x := range list {
+		if strings.EqualFold(x, s) {
+			return true
+		}
+	}
+	return false
 }
 
 // --- expectation matching (DESIGN.md §2) ---

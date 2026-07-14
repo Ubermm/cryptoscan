@@ -177,6 +177,68 @@ func TestSchemaValidationCorpus(t *testing.T) {
 	t.Logf("corpus CBOM: %d components", len(doc.Components))
 }
 
+// TestCorpusDependenciesResolve asserts the corpus CBOM has no dangling
+// dependency refs: every dependency ref, and every bom-ref it dependsOn/provides,
+// resolves to a real component. ConfigEndpoint nodes (added as protocol
+// components) are what make this hold — without their components the
+// references/stored_in edges would point at bom-refs with no component (task E).
+func TestCorpusDependenciesResolve(t *testing.T) {
+	g := scanCorpus(t)
+	var buf bytes.Buffer
+	if err := cbom.Write(&buf, g, pqc.Score(g, refTime), cbom.Options{Timestamp: refTime}); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	var doc struct {
+		Components []struct {
+			Type             string `json:"type"`
+			BOMRef           string `json:"bom-ref"`
+			CryptoProperties *struct {
+				AssetType string `json:"assetType"`
+			} `json:"cryptoProperties"`
+		} `json:"components"`
+		Dependencies []struct {
+			Ref       string   `json:"ref"`
+			DependsOn []string `json:"dependsOn"`
+			Provides  []string `json:"provides"`
+		} `json:"dependencies"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	comps := map[string]bool{}
+	endpointComps := 0
+	for _, c := range doc.Components {
+		comps[c.BOMRef] = true
+		if strings.HasPrefix(c.BOMRef, "cfgendpoint:") {
+			endpointComps++
+			if c.CryptoProperties == nil || c.CryptoProperties.AssetType != "protocol" {
+				t.Errorf("ConfigEndpoint component %s assetType = %+v, want protocol", c.BOMRef, c.CryptoProperties)
+			}
+		}
+	}
+	if endpointComps == 0 {
+		t.Fatal("corpus CBOM has no ConfigEndpoint (protocol) components")
+	}
+
+	for _, d := range doc.Dependencies {
+		if !comps[d.Ref] {
+			t.Errorf("dependency ref %q has no component", d.Ref)
+		}
+		for _, on := range d.DependsOn {
+			if !comps[on] {
+				t.Errorf("dependency %q dependsOn %q which has no component", d.Ref, on)
+			}
+		}
+		for _, pv := range d.Provides {
+			if !comps[pv] {
+				t.Errorf("dependency %q provides %q which has no component", d.Ref, pv)
+			}
+		}
+	}
+}
+
 // TestDeterminismCorpus asserts two Writes of the corpus graph are byte-identical.
 func TestDeterminismCorpus(t *testing.T) {
 	g := scanCorpus(t)

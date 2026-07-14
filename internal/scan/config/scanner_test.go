@@ -44,7 +44,7 @@ func TestIntegrationScorecard(t *testing.T) {
 	}
 
 	want := map[string]struct{ tp, expected int }{
-		"tls_config": {12, 12},
+		"tls_config": {19, 19}, // 12 curated + 7 held-out real-world config files
 		"ssh_config": {3, 3},
 	}
 	seen := map[string]bool{}

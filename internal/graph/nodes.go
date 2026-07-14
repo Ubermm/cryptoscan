@@ -22,6 +22,7 @@ const (
 	NodeEndpoint           NodeType = "Endpoint"
 	NodeService            NodeType = "Service"
 	NodeConfigFile         NodeType = "ConfigFile"
+	NodeConfigEndpoint     NodeType = "ConfigEndpoint"
 	NodeCryptoLibrary      NodeType = "CryptoLibrary"
 	NodeCA                 NodeType = "CA"
 	NodeKMSEntry           NodeType = "KMSEntry"
@@ -296,6 +297,46 @@ func containsDirective(list []Directive, d Directive) bool {
 	return false
 }
 
+// ConfigEndpointNode identifies a single server/vhost/frontend/bind block within
+// a config file, resolved on its own (DESIGN.md §1). Its node ID is
+// `cfgendpoint:` + cleaned file path + `#` + block index, so every TLS-terminating
+// block in a multi-block file is a distinct node. It mirrors ConfigFileNode's
+// shape: identity fields (Path, BlockIndex) plus an Attrs map of the per-block
+// RESOLVED values — server_name(s), listen/bind address:port(s), protocols,
+// ciphers, cert_refs, and the quantum-relevant params (dhparam, ecdh_curve) and
+// mTLS trust anchors (ca_refs, trusted_refs) where present. Attrs keys:
+//
+//	server_name  ([]string), listen ([]string, addr:port), port (int),
+//	protocols ([]string), ciphers ([]string), cert_refs ([]string),
+//	dhparam (string), ecdh_curve (string), ca_refs ([]string),
+//	trusted_refs ([]string)
+//
+// This is per-endpoint attribution: a weak protocol is provable against THIS
+// block's host:port, not merely the file. The node `references` its Cert/Key
+// nodes and is `stored_in` its ConfigFile. Attrs merge with mergeAttrs
+// (existing-wins), exactly like EndpointNode/ConfigFileNode.
+type ConfigEndpointNode struct {
+	baseNode
+	Path       string         `json:"path,omitempty"`
+	BlockIndex int            `json:"block_index"`
+	Attrs      map[string]any `json:"attrs,omitempty"`
+}
+
+// Type implements Node.
+func (*ConfigEndpointNode) Type() NodeType { return NodeConfigEndpoint }
+
+func (e *ConfigEndpointNode) mergeFrom(other Node) error {
+	o, ok := other.(*ConfigEndpointNode)
+	if !ok {
+		return typeMismatch(e, other)
+	}
+	mergeString(&e.Path, o.Path)
+	mergeInt(&e.BlockIndex, o.BlockIndex)
+	mergeAttrs(&e.Attrs, o.Attrs)
+	e.AddProvenance(o.Prov...)
+	return nil
+}
+
 // CryptoLibraryNode identifies a crypto library by name@version.
 type CryptoLibraryNode struct {
 	baseNode
@@ -510,6 +551,25 @@ func FileNodeID(path string) (string, error) {
 		return "", fmt.Errorf("graph: cannot resolve absolute path for %q: %w", path, err)
 	}
 	return "file:" + filepath.Clean(abs), nil
+}
+
+// ConfigEndpointID builds a ConfigEndpoint node ID from a config file path and a
+// zero-based block index (DESIGN.md §1: `cfgendpoint:` + cleaned file path + `#`
+// + block index). The path is cleaned and made absolute the same way FileNodeID
+// does, so a block's endpoint node and its ConfigFile node share the same path
+// anchor. A negative index is rejected.
+func ConfigEndpointID(cleanPath string, blockIndex int) (string, error) {
+	if strings.TrimSpace(cleanPath) == "" {
+		return "", fmt.Errorf("graph: empty config endpoint path")
+	}
+	if blockIndex < 0 {
+		return "", fmt.Errorf("graph: config endpoint block index %d is negative", blockIndex)
+	}
+	abs, err := filepath.Abs(cleanPath)
+	if err != nil {
+		return "", fmt.Errorf("graph: cannot resolve absolute path for %q: %w", cleanPath, err)
+	}
+	return "cfgendpoint:" + filepath.Clean(abs) + "#" + strconv.Itoa(blockIndex), nil
 }
 
 // ServiceNodeID builds a Service node ID from its name (DESIGN.md §1:

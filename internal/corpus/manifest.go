@@ -47,6 +47,24 @@ type Asset struct {
 	Container string `yaml:"container,omitempty"` // pem | der | jks | pkcs12
 	Alias     string `yaml:"alias,omitempty"`     // entry alias inside jks/pkcs12
 	Expect    Expect `yaml:"expect,omitempty"`
+	// Endpoints declares the per-block ground truth for a multi-block tls_config
+	// asset (nginx server{}, apache <VirtualHost>, haproxy bind). Each entry is
+	// scored against the emitted ConfigEndpoint nodes as the separate
+	// tls_config_endpoint class; the file-level Expect above is scored
+	// independently. Empty for single-block or non-config assets.
+	Endpoints []EndpointExpect `yaml:"endpoints,omitempty"`
+}
+
+// EndpointExpect is one declared per-endpoint (server/vhost/bind) ground truth.
+// Name is a human label; Listen and ServerName identify which emitted
+// ConfigEndpoint it matches (by server_name+port or by listen); Expect holds the
+// per-endpoint field expectations (protocols exact-set, ciphers_contains,
+// cert_refs, dhparam, ecdh_curve) using the same matching semantics as Expect.
+type EndpointExpect struct {
+	Name       string `yaml:"name"`
+	Listen     string `yaml:"listen,omitempty"`
+	ServerName string `yaml:"server_name,omitempty"`
+	Expect     Expect `yaml:"expect,omitempty"`
 }
 
 // Expect holds the fields that MUST match for an asset to count as a true
@@ -157,6 +175,11 @@ func Merge(fragments ...*Fragment) (*Corpus, error) {
 			}
 			if err := validateExpect(a.Expect); err != nil {
 				return nil, fmt.Errorf("corpus: asset %q (%s): %w", a.ID, src, err)
+			}
+			for ei, ep := range a.Endpoints {
+				if err := validateExpect(ep.Expect); err != nil {
+					return nil, fmt.Errorf("corpus: asset %q (%s) endpoint #%d: %w", a.ID, src, ei, err)
+				}
 			}
 			seen[a.ID] = src
 			c.Assets = append(c.Assets, a)

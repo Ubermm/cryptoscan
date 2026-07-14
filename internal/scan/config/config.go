@@ -74,6 +74,17 @@
 // later joins these referenced-file nodes to Certificate nodes
 // (references -> Certificate) using the resolved path + line provenance.
 //
+// ScanIntoGraph additionally upserts one ConfigEndpoint node (DESIGN.md §1) per
+// TLS-terminating server/vhost/frontend-bind block, carrying that block's
+// resolved per-endpoint state (server_name, listen/port, protocols, ciphers,
+// cert_refs, dhparam, ecdh_curve, mTLS trust anchors), with `stored_in` -> its
+// ConfigFile and `references` -> its cert/key file nodes. The file-level attrs
+// remain the per-file UNION rollup; the ConfigEndpoint nodes carry the per-block
+// truth (per-endpoint attribution). nginx `include` / apache `Include` directives
+// in a block's scope are resolved relative to the including file (glob-aware,
+// cycle-guarded, depth-bounded) and their TLS directives folded into that
+// endpoint (issue #3); a missing include target is skipped, never fatal.
+//
 // The package depends only on the standard library and internal/graph +
 // internal/scan, and never panics: malformed input is skipped silently and the
 // walk continues (CLAUDE.md: no panics on malformed input, ever).
@@ -159,6 +170,12 @@ type parseResult struct {
 	attrs      map[string]any
 	directives []graph.Directive
 	refs       []pathRef
+	// endpoints is the per-block breakdown (one entry per TLS-terminating
+	// server/vhost/frontend-bind). It is additive: the file-level attrs above
+	// remain the per-file UNION rollup DESIGN.md §1 requires, while endpoints
+	// carry the per-block truth used to populate ConfigEndpoint nodes. Empty for
+	// formats without a block model (openssl.cnf, sshd_config).
+	endpoints []*endpointResult
 }
 
 // parsers is the fixed-priority detection order. Signatures are mutually
@@ -304,33 +321,82 @@ func populate(root string, h hit, g *graph.Graph) {
 	}
 
 	for _, ref := range h.res.refs {
-		toID, toRel, ok := resolveRef(root, h.disk, ref.raw)
-		if !ok {
+		addRef(root, h, g, fromID, ref)
+	}
+
+	// Per-endpoint attribution (DESIGN.md §1 ConfigEndpoint). Each TLS-terminating
+	// block becomes its own node carrying the block's resolved state, `stored_in`
+	// its ConfigFile and `references` its cert/key file nodes. The file-level node
+	// and its edges above are unchanged; this is purely additive.
+	for _, ep := range h.res.endpoints {
+		foldIncludes(h.res.format, h.disk, ep)
+		epID, err := graph.ConfigEndpointID(h.disk, ep.blockIndex)
+		if err != nil {
 			continue
 		}
-		target := &graph.ConfigFileNode{Path: toRel}
-		target.NodeID = toID
-		target.AddProvenance(graph.Provenance{
+		epNode := &graph.ConfigEndpointNode{
+			Path:       h.rel,
+			BlockIndex: ep.blockIndex,
+			Attrs:      ep.attrs(),
+		}
+		epNode.NodeID = epID
+		epNode.AddProvenance(graph.Provenance{
 			Source:   graph.SourceConfig,
 			Location: h.rel,
-			Line:     ref.line,
-			Detail:   "referenced by " + ref.kind,
+			Line:     ep.line,
+			Detail:   "config endpoint",
 		})
-		if _, err := g.UpsertNode(target); err != nil {
+		if _, err := g.UpsertNode(epNode); err != nil {
 			continue
 		}
+		// stored_in: endpoint → its ConfigFile.
 		_, _ = g.AddEdge(graph.Edge{
-			Type: graph.EdgeReferences,
-			From: fromID,
-			To:   toID,
+			Type: graph.EdgeStoredIn,
+			From: epID,
+			To:   fromID,
 			Provenance: []graph.Provenance{{
 				Source:   graph.SourceConfig,
 				Location: h.rel,
-				Line:     ref.line,
-				Detail:   ref.kind,
+				Line:     ep.line,
+				Detail:   "config endpoint",
 			}},
 		})
+		// references: endpoint → cert/key file nodes (resolved as file-level does).
+		for _, ref := range ep.refs {
+			addRef(root, h, g, epID, ref)
+		}
 	}
+}
+
+// addRef resolves a cert/key path reference and adds the ConfigFile target node
+// plus a `references` edge from fromID (a ConfigFile or ConfigEndpoint node) to it.
+func addRef(root string, h hit, g *graph.Graph, fromID string, ref pathRef) {
+	toID, toRel, ok := resolveRef(root, h.disk, ref.raw)
+	if !ok {
+		return
+	}
+	target := &graph.ConfigFileNode{Path: toRel}
+	target.NodeID = toID
+	target.AddProvenance(graph.Provenance{
+		Source:   graph.SourceConfig,
+		Location: h.rel,
+		Line:     ref.line,
+		Detail:   "referenced by " + ref.kind,
+	})
+	if _, err := g.UpsertNode(target); err != nil {
+		return
+	}
+	_, _ = g.AddEdge(graph.Edge{
+		Type: graph.EdgeReferences,
+		From: fromID,
+		To:   toID,
+		Provenance: []graph.Provenance{{
+			Source:   graph.SourceConfig,
+			Location: h.rel,
+			Line:     ref.line,
+			Detail:   ref.kind,
+		}},
+	})
 }
 
 // resolveRef turns a raw cert/key reference into a target ConfigFile node ID and
