@@ -329,6 +329,53 @@ func TestCorpusReport(t *testing.T) {
 		return false
 	}
 
+	// CSRs: the 2 .csr fixtures now surface as first-class type `csr` (not
+	// public_key). Both are quantum-vulnerable but neither weak (RSA-2048 /
+	// ECDSA P-256) and neither has an expiry. Their SPKIs are deliberately reused
+	// from the rsa-2048 / ecdsa-p256 certificates, so the Key nodes (and thus the
+	// public_key/private_key finding counts) are unchanged by entity resolution;
+	// the CSR-ness is carried on its own CertificateRequest node.
+	csrCount := 0
+	for _, f := range doc.Findings {
+		if f.Type == "csr" {
+			csrCount++
+			if f.Issuer != "N/A (certificate request)" {
+				t.Errorf("csr finding issuer = %q, want %q", f.Issuer, "N/A (certificate request)")
+			}
+			if f.Expiry != "" {
+				t.Errorf("csr finding expiry = %q, want empty (CSRs have no validity)", f.Expiry)
+			}
+			if !has(f.PQCExposure, pqc.FlagQuantumVulnerable) {
+				t.Errorf("csr finding missing quantum_vulnerable flag, got %v", f.PQCExposure)
+			}
+		}
+	}
+	if csrCount != 2 {
+		t.Errorf("csr findings = %d, want exactly 2 (rsa-2048.csr, ecdsa-p256.csr)", csrCount)
+	}
+	// Each .csr fixture must resolve to a csr-typed finding. (Its shared Key node
+	// may also list the .csr among its provenance locations — that is the
+	// entity-resolution "one node, many locations" feature — but the CSR asset
+	// itself is now its own csr finding, not a public_key.)
+	findTyped := func(typ, substr string) *corpusFinding {
+		for i := range doc.Findings {
+			if doc.Findings[i].Type != typ {
+				continue
+			}
+			for _, loc := range doc.Findings[i].Locations {
+				if strings.Contains(loc, substr) {
+					return &doc.Findings[i]
+				}
+			}
+		}
+		return nil
+	}
+	for _, csrPath := range []string{"keys/rsa-2048.csr", "keys/ecdsa-p256.csr"} {
+		if f := findTyped("csr", csrPath); f == nil {
+			t.Errorf("%s not found as a csr-typed finding", csrPath)
+		}
+	}
+
 	// rsa-1024 -> weak_key + key_size 1024 + self-signed issuer noted.
 	if f := find("certs/rsa-1024-selfsigned.pem"); f == nil {
 		t.Error("rsa-1024 cert finding not found")

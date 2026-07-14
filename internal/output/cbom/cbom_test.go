@@ -318,6 +318,86 @@ func TestMappings(t *testing.T) {
 	assertProp(t, doc.Components[k].Properties, "cryptoscan:pqc:expired", "true")
 }
 
+// TestCSRComponent asserts a CertificateRequest node projects into a schema-valid
+// related-crypto-material component carrying the cryptoscan:asset:type=csr marker,
+// the SPKI id, an algorithmRef, and a signs_with→Key dependency.
+func TestCSRComponent(t *testing.T) {
+	const csrKeySPKI = "4444444444444444444444444444444444444444444444444444444444444444"
+	const csrDER = "5555555555555555555555555555555555555555555555555555555555555555"
+
+	g := graph.New()
+
+	csr := &graph.CertificateRequestNode{
+		Subject:            "CN=req.example.com,O=Example",
+		Algorithm:          "ECDSA",
+		KeySize:            256,
+		Curve:              "P-256",
+		SignatureAlgorithm: "ECDSA-SHA256",
+		SPKISHA256:         csrKeySPKI,
+	}
+	csr.NodeID = "csr:" + csrDER
+	csr.AddProvenance(graph.Provenance{Source: graph.SourceFS, Location: "keys/req.csr", Line: 1, Detail: "PEM CERTIFICATE REQUEST"})
+	mustUpsert(t, g, csr)
+
+	key := &graph.KeyNode{Algorithm: "ECDSA", KeySize: 256, Curve: "P-256", HasPublic: true}
+	key.NodeID = "key:" + csrKeySPKI
+	key.AddProvenance(graph.Provenance{Source: graph.SourceFS, Location: "keys/req.csr", Line: 1})
+	mustUpsert(t, g, key)
+
+	if _, err := g.AddEdge(graph.Edge{Type: graph.EdgeSignsWith, From: csr.ID(), To: key.ID()}); err != nil {
+		t.Fatalf("add signs_with edge: %v", err)
+	}
+
+	exposure := pqc.Score(g, refTime)
+	var buf bytes.Buffer
+	if err := cbom.Write(&buf, g, exposure, cbom.Options{Timestamp: refTime}); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	validateSchema(t, buf.Bytes())
+
+	var doc parsedBOM
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	i, ok := doc.byRef(csr.ID())
+	if !ok {
+		t.Fatal("CSR component missing from BOM")
+	}
+	c := doc.Components[i]
+	if c.CryptoProperties == nil || c.CryptoProperties.AssetType != "related-crypto-material" {
+		t.Errorf("CSR assetType = %+v, want related-crypto-material", c.CryptoProperties)
+	}
+	assertProp(t, c.Properties, "cryptoscan:asset:type", "csr")
+	assertProp(t, c.Properties, "cryptoscan:pqc:quantum_vulnerable_algorithm", "true")
+	if !hasProp(c.Properties, "cryptoscan:csr:note") {
+		t.Error("CSR component missing cryptoscan:csr:note property")
+	}
+
+	// The signs_with CSR→Key linkage is carried as a dependency.
+	var deps struct {
+		Dependencies []struct {
+			Ref       string   `json:"ref"`
+			DependsOn []string `json:"dependsOn"`
+		} `json:"dependencies"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &deps); err != nil {
+		t.Fatalf("parse deps: %v", err)
+	}
+	found := false
+	for _, d := range deps.Dependencies {
+		if d.Ref == csr.ID() {
+			for _, on := range d.DependsOn {
+				if on == key.ID() {
+					found = true
+				}
+			}
+		}
+	}
+	if !found {
+		t.Errorf("CSR %s must dependsOn key %s in the dependency graph", csr.ID(), key.ID())
+	}
+}
+
 // TestNilGraph proves a nil graph yields a valid minimal BOM without panicking.
 func TestNilGraph(t *testing.T) {
 	var buf bytes.Buffer

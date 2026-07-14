@@ -76,20 +76,46 @@ func (r *run) emitEncryptedKey(rel, alias string, prov graph.Provenance) {
 	r.findings = append(r.findings, mkFinding("private_key", rel, alias, map[string]any{}, prov))
 }
 
-// emitCSR records a certificate-signing-request Finding and merges the Key node
-// its public key implies (HasPublic) plus a stored_in edge.
+// emitCSR records a certificate-signing-request Finding and projects the CSR
+// into the graph as a first-class CertificateRequest node (identified by the
+// SHA-256 of its DER encoding), joined to the Key node its subject public key
+// implies via a signs_with edge and to its containing file via stored_in. This
+// mirrors emitCert's cert→graph shape (the cert is stored_in the file; its key is
+// linked via signs_with), so a CSR is no longer indistinguishable from a bare
+// public key downstream (DESIGN.md §1). The Finding (class csr) is unchanged.
 func (r *run) emitCSR(rel, alias string, prov graph.Provenance, csr *x509.CertificateRequest) {
 	attrs, ok := csrAttrs(csr)
 	if !ok {
 		return
 	}
 	r.findings = append(r.findings, mkFinding("csr", rel, alias, attrs, prov))
-	if spki, ok := spkiSHA256FromPub(csr.PublicKey); ok {
-		keyID := upsertKeyNode(r.g, spki, strAttr(attrs, "algorithm"), intAttr(attrs, "key_size"), strAttr(attrs, "curve"), true, false, prov)
-		if keyID != "" {
-			r.storedIn(keyID, rel, prov)
-		}
+
+	spki, ok := spkiSHA256FromPub(csr.PublicKey)
+	if !ok {
+		return
 	}
+	csrID, err := graph.CSRNodeID(hexSHA256(csr.Raw))
+	if err != nil {
+		return
+	}
+	cn := &graph.CertificateRequestNode{
+		Subject:            csr.Subject.String(),
+		Algorithm:          strAttr(attrs, "algorithm"),
+		KeySize:            intAttr(attrs, "key_size"),
+		Curve:              strAttr(attrs, "curve"),
+		SignatureAlgorithm: csr.SignatureAlgorithm.String(),
+		SPKISHA256:         spki,
+	}
+	cn.NodeID = csrID
+	cn.AddProvenance(prov)
+	if _, err := r.g.UpsertNode(cn); err != nil {
+		return
+	}
+	keyID := upsertKeyNode(r.g, spki, strAttr(attrs, "algorithm"), intAttr(attrs, "key_size"), strAttr(attrs, "curve"), true, false, prov)
+	if keyID != "" {
+		_, _ = r.g.AddEdge(graph.Edge{Type: graph.EdgeSignsWith, From: csrID, To: keyID, Provenance: []graph.Provenance{prov}})
+	}
+	r.storedIn(csrID, rel, prov)
 }
 
 // upsertKeyNode merges a Key node identified by its SPKI SHA-256 into g and

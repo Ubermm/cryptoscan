@@ -46,6 +46,26 @@ func TestIDHelpers(t *testing.T) {
 			want: "key:" + hashB,
 		},
 		{
+			name: "csr prefixes",
+			got:  func() (string, error) { return CSRNodeID(hashA) },
+			want: "csr:" + hashA,
+		},
+		{
+			name: "csr lowercases and trims",
+			got:  func() (string, error) { return CSRNodeID("  " + strings.ToUpper(hashB) + "\n") },
+			want: "csr:" + hashB,
+		},
+		{
+			name:    "csr rejects short hash",
+			got:     func() (string, error) { return CSRNodeID("deadbeef") },
+			wantErr: true,
+		},
+		{
+			name:    "csr rejects non-hex",
+			got:     func() (string, error) { return CSRNodeID(strings.Repeat("z", 64)) },
+			wantErr: true,
+		},
+		{
 			name: "ca by der",
 			got:  func() (string, error) { return CANodeID(hashA) },
 			want: "ca:" + hashA,
@@ -297,6 +317,73 @@ func TestUpsertNodeMerge(t *testing.T) {
 	})
 }
 
+// TestUpsertCertificateRequestMerge covers upsert/merge of a CertificateRequest
+// node: existing scalar attributes win, empty ones fill from the incoming node,
+// and provenance unions — the same merge semantics as CertificateNode.
+func TestUpsertCertificateRequestMerge(t *testing.T) {
+	id, err := CSRNodeID(hashA)
+	if err != nil {
+		t.Fatalf("CSRNodeID: %v", err)
+	}
+	g := New()
+
+	first := &CertificateRequestNode{
+		baseNode:   baseNode{NodeID: id},
+		Subject:    "CN=csr.example.test",
+		Algorithm:  "ECDSA",
+		Curve:      "P-256",
+		SPKISHA256: hashB,
+	}
+	first.AddProvenance(Provenance{Source: SourceFS, Location: "keys/req.csr", Line: 1})
+	if _, err := g.UpsertNode(first); err != nil {
+		t.Fatalf("first upsert: %v", err)
+	}
+
+	second := &CertificateRequestNode{
+		baseNode:           baseNode{NodeID: id},
+		Subject:            "CN=IGNORED",   // existing wins
+		KeySize:            256,            // fills empty
+		SignatureAlgorithm: "ECDSA-SHA256", // fills empty
+	}
+	second.AddProvenance(Provenance{Source: SourceFS, Location: "keys/req.csr", Line: 1}) // dup
+	second.AddProvenance(Provenance{Source: SourceFS, Location: "other/req.csr", Line: 2})
+
+	resident, err := g.UpsertNode(second)
+	if err != nil {
+		t.Fatalf("second upsert: %v", err)
+	}
+	if g.NodeCount() != 1 {
+		t.Fatalf("node count = %d, want 1 after merge", g.NodeCount())
+	}
+	c, ok := resident.(*CertificateRequestNode)
+	if !ok {
+		t.Fatalf("resident is %T, want *CertificateRequestNode", resident)
+	}
+	if c.Type() != NodeCertificateRequest {
+		t.Errorf("Type() = %q, want %q", c.Type(), NodeCertificateRequest)
+	}
+	if c.Subject != "CN=csr.example.test" {
+		t.Errorf("Subject = %q, want existing value to win", c.Subject)
+	}
+	if c.KeySize != 256 {
+		t.Errorf("KeySize = %d, want 256 filled from second", c.KeySize)
+	}
+	if c.SignatureAlgorithm != "ECDSA-SHA256" {
+		t.Errorf("SignatureAlgorithm = %q, want filled from second", c.SignatureAlgorithm)
+	}
+	if c.Curve != "P-256" || c.SPKISHA256 != hashB {
+		t.Errorf("Curve/SPKI = %q/%q, want P-256/%s preserved", c.Curve, c.SPKISHA256, hashB)
+	}
+	if len(c.Provenance()) != 2 {
+		t.Errorf("provenance = %v, want 2 unioned records (one deduped)", c.Provenance())
+	}
+
+	// A type conflict on the same ID must error, like every other node type.
+	if _, err := g.UpsertNode(&KeyNode{baseNode: baseNode{NodeID: id}}); err == nil {
+		t.Error("expected type-conflict error upserting a Key over a CertificateRequest")
+	}
+}
+
 // TestUpsertEndpointAttrsMerge covers the EndpointNode Attrs merge: a key union
 // with existing-wins per key, so a TLS probe and an SSH probe of the same
 // host:port fold their distinct observations into one node without clobbering.
@@ -507,6 +594,27 @@ func TestAddEdge(t *testing.T) {
 		}
 		if g.EdgeCount() != 2 {
 			t.Errorf("edge count = %d, want 2 distinct edges", g.EdgeCount())
+		}
+	})
+
+	t.Run("signs_with accepts a CertificateRequest source", func(t *testing.T) {
+		g := New()
+		csrID, err := CSRNodeID(hashA)
+		if err != nil {
+			t.Fatalf("CSRNodeID: %v", err)
+		}
+		keyID, err := KeyNodeID(hashB)
+		if err != nil {
+			t.Fatalf("KeyNodeID: %v", err)
+		}
+		e := Edge{Type: EdgeSignsWith, From: csrID, To: keyID}
+		e.Provenance = []Provenance{{Source: SourceFS, Location: "keys/req.csr", Line: 1}}
+		resident, err := g.AddEdge(e)
+		if err != nil {
+			t.Fatalf("AddEdge signs_with CSR->Key: %v", err)
+		}
+		if resident.From != csrID || resident.To != keyID || resident.Type != EdgeSignsWith {
+			t.Errorf("edge = %+v, want signs_with %s -> %s", resident, csrID, keyID)
 		}
 	})
 

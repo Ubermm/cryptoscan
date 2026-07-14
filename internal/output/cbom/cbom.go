@@ -15,6 +15,11 @@
 //   - Key node          → assetType "related-crypto-material";
 //     relatedCryptoMaterialProperties (type public-key/private-key, size,
 //     algorithmRef, id = SPKI hash). bom-ref = the "key:<spki>" node ID.
+//   - CertificateRequest → assetType "related-crypto-material" (the documented
+//     pragmatic fit for a PKCS#10 CSR); relatedCryptoMaterialProperties (type
+//     public-key, id = SPKI hash, algorithmRef), a "cryptoscan:asset:type=csr"
+//     marker property, and a "cryptoscan:csr:*" note. Its signs_with → Key is a
+//     dependency. bom-ref = the "csr:<derhash>" node ID.
 //   - Distinct algorithms (public-key + certificate signature) → assetType
 //     "algorithm" components, deduplicated by a stable "alg:*" bom-ref, referenced
 //     from certificates/keys via the typed *Ref fields.
@@ -64,6 +69,8 @@ const (
 	tlsNS     = "cryptoscan:tls:"
 	sshNS     = "cryptoscan:ssh:"
 	cfgNS     = "cryptoscan:config:"
+	assetNS   = "cryptoscan:asset:"
+	csrNS     = "cryptoscan:csr:"
 )
 
 // Options controls the deterministic, injectable parts of a Write. The zero
@@ -145,6 +152,8 @@ func build(g *graph.Graph, exposure pqc.Report, opts Options) *bom {
 		switch v := n.(type) {
 		case *graph.CertificateNode:
 			comps = append(comps, certComponent(g, v, algs, expByNode))
+		case *graph.CertificateRequestNode:
+			comps = append(comps, csrComponent(v, algs, expByNode))
 		case *graph.KeyNode:
 			comps = append(comps, keyComponent(v, algs, expByNode))
 		case *graph.EndpointNode:
@@ -234,6 +243,43 @@ func keyComponent(k *graph.KeyNode, algs map[string]component, exp map[string]pq
 		},
 	}
 	comp.Properties = pqcProperties(exp, k.ID())
+	return comp
+}
+
+// csrComponent projects a CertificateRequest (PKCS#10 CSR) node. A CSR has no
+// native CycloneDX assetType; the pragmatic, documented fit is
+// related-crypto-material carrying the subject public key it proves possession of
+// (type public-key, id = SPKI hash, algorithmRef = the key's algorithm), marked
+// with a "cryptoscan:asset:type=csr" property and a namespaced note that it is a
+// PKCS#10 request so the CSR is not mistaken for a bare public key. The
+// signs_with CSR→Key linkage is carried in the dependency graph (see
+// dependencies), analogous to a certificate's subjectPublicKeyRef.
+func csrComponent(c *graph.CertificateRequestNode, algs map[string]component, exp map[string]pqc.NodeExposure) component {
+	rcm := &relatedCryptoMaterialProperties{
+		Type: "public-key",
+		ID:   c.SPKISHA256,
+	}
+	if ref, comp, ok := keyAlgorithm(c.Algorithm, c.KeySize, c.Curve); ok {
+		register(algs, ref, comp)
+		rcm.AlgorithmRef = ref
+	}
+	props := []property{
+		{Name: assetNS + "type", Value: "csr"},
+		{Name: csrNS + "note", Value: "PKCS#10 certificate signing request"},
+	}
+	if c.SignatureAlgorithm != "" {
+		props = append(props, property{Name: csrNS + "signature_algorithm", Value: c.SignatureAlgorithm})
+	}
+	comp := component{
+		Type:   "cryptographic-asset",
+		BOMRef: c.ID(),
+		Name:   csrName(c),
+		CryptoProperties: &cryptoProperties{
+			AssetType:                       "related-crypto-material",
+			RelatedCryptoMaterialProperties: rcm,
+		},
+	}
+	comp.Properties = mergeProps(props, pqcProperties(exp, c.ID()))
 	return comp
 }
 
@@ -354,7 +400,7 @@ func dependencies(g *graph.Graph) []dependency {
 	// Enumerate every first-class asset node.
 	for _, n := range g.Nodes() {
 		switch n.Type() {
-		case graph.NodeCertificate, graph.NodeKey, graph.NodeEndpoint, graph.NodeConfigFile, graph.NodeCA:
+		case graph.NodeCertificate, graph.NodeCertificateRequest, graph.NodeKey, graph.NodeEndpoint, graph.NodeConfigFile, graph.NodeCA:
 			ensure(n.ID())
 		}
 	}
@@ -364,6 +410,13 @@ func dependencies(g *graph.Graph) []dependency {
 		case graph.EdgeIssuedBy: // cert -> CA : cert depends on CA
 			ensure(e.From)
 			addDep(e.From, e.To)
+		case graph.EdgeSignsWith: // CSR -> key : csr depends on key. A cert's
+			// signs_with is carried via certificateProperties.subjectPublicKeyRef,
+			// not here, so only CSR sources contribute a dependency edge.
+			if strings.HasPrefix(e.From, "csr:") {
+				ensure(e.From)
+				addDep(e.From, e.To)
+			}
 		case graph.EdgeTerminatesTLSFor: // cert -> endpoint : endpoint depends on cert
 			ensure(e.To)
 			addDep(e.To, e.From)

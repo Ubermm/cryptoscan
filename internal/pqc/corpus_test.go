@@ -64,13 +64,22 @@ func TestScoreCorpusGroundTruth(t *testing.T) {
 		t.Errorf("flagged Key nodes = %d, want 13", got)
 	}
 
-	// quantum_vulnerable: every certificate and key in the corpus is RSA/ECDSA/
-	// Ed25519 (all Shor-breakable) -> 13 + 13 = 26.
-	if got := flagCount(s.ByFlag, FlagQuantumVulnerable); got != 26 {
-		t.Errorf("quantum_vulnerable count = %d, want 26", got)
+	// CertificateRequest: the 2 corpus CSRs (rsa-2048.csr = RSA-2048,
+	// ecdsa-p256.csr = ECDSA P-256) are now first-class CertificateRequest nodes.
+	// Both keys share their SPKI with an existing cert's Key node (entity
+	// resolution), so no NEW Key node is added — Key stays 13 — but 2 new
+	// CertificateRequest nodes are scored and both are quantum-vulnerable.
+	if got := flagCount(s.ByNodeType, "CertificateRequest"); got != 2 {
+		t.Errorf("flagged CertificateRequest nodes = %d, want 2", got)
 	}
-	if s.QuantumVulnerableAssets != 26 {
-		t.Errorf("Summary.QuantumVulnerableAssets = %d, want 26", s.QuantumVulnerableAssets)
+
+	// quantum_vulnerable: every certificate, key, and CSR in the corpus is RSA/
+	// ECDSA/Ed25519 (all Shor-breakable) -> 13 certs + 13 keys + 2 CSRs = 28.
+	if got := flagCount(s.ByFlag, FlagQuantumVulnerable); got != 28 {
+		t.Errorf("quantum_vulnerable count = %d, want 28", got)
+	}
+	if s.QuantumVulnerableAssets != 28 {
+		t.Errorf("Summary.QuantumVulnerableAssets = %d, want 28", s.QuantumVulnerableAssets)
 	}
 
 	// weak_key: only the RSA-1024 fixture is < 2048 bits, flagged on BOTH its

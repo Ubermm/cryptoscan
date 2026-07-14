@@ -147,14 +147,15 @@ func buildFindings(g *graph.Graph, exposure pqc.Report) []finding {
 // findingType maps a node to its principle-4 asset type, reporting false for node
 // kinds that are not emitted as findings.
 //
-// Note (deviation): a CSR and a bare public key both resolve to a KeyNode with
-// only public-key material in the graph model, so a CSR surfaces here as
-// public_key — the graph does not retain CSR-ness. The "csr" type is reserved in
-// the vocabulary for when that distinction is carried on the node.
+// A CSR is carried as a first-class CertificateRequest node (DESIGN.md §1), so it
+// surfaces here as its own "csr" type rather than collapsing into the public_key
+// finding of the Key node it signs_with.
 func findingType(n graph.Node) (string, bool) {
 	switch v := n.(type) {
 	case *graph.CertificateNode:
 		return "certificate", true
+	case *graph.CertificateRequestNode:
+		return "csr", true
 	case *graph.KeyNode:
 		if v.HasPrivate {
 			return "private_key", true
@@ -192,6 +193,8 @@ func algorithmFor(n graph.Node) string {
 	switch v := n.(type) {
 	case *graph.CertificateNode:
 		return algoWithCurve(v.Algorithm, "", v.KeySize)
+	case *graph.CertificateRequestNode:
+		return algoWithCurve(v.Algorithm, v.Curve, v.KeySize)
 	case *graph.KeyNode:
 		return algoWithCurve(v.Algorithm, v.Curve, v.KeySize)
 	case *graph.EndpointNode:
@@ -304,6 +307,10 @@ func keySizeFor(n graph.Node) string {
 		if v.KeySize > 0 {
 			return strconv.Itoa(v.KeySize)
 		}
+	case *graph.CertificateRequestNode:
+		if v.KeySize > 0 {
+			return strconv.Itoa(v.KeySize)
+		}
 	case *graph.KeyNode:
 		if v.KeySize > 0 {
 			return strconv.Itoa(v.KeySize)
@@ -401,6 +408,10 @@ func appendState(base, state string) string {
 // annotated when the certificate is self-signed (issuer == subject). Non-cert
 // assets have no issuer.
 func issuerFor(n graph.Node) string {
+	if _, ok := n.(*graph.CertificateRequestNode); ok {
+		// A CSR has no issuer/CA — it is an unsigned request for one.
+		return "N/A (certificate request)"
+	}
 	c, ok := n.(*graph.CertificateNode)
 	if !ok {
 		return ""

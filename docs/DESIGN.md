@@ -14,6 +14,7 @@ projections of it.
 | Type          | Identity key (node ID)                          | Core attributes |
 |---------------|--------------------------------------------------|-----------------|
 | Certificate   | `cert:` + SHA-256 of DER encoding (hex)          | subject, issuer, serial, algorithm, key_size, signature_algorithm, not_before, not_after, san, spki_sha256, self_signed |
+| CertificateRequest | `csr:` + SHA-256 of CSR DER (hex)          | subject, algorithm, key_size, curve, signature_algorithm, spki_sha256. A PKCS#10 CSR is a distinct crypto asset (proof-of-possession of a key), not a Certificate and not merely a Key. It `signs_with` its Key node (SPKI). Emitted as report type `csr`; in CBOM as a cryptographic-asset (assetType related-crypto-material, documented). |
 | Key           | `key:` + SPKI SHA-256 (hex)                      | algorithm, key_size, curve, public/private |
 | Endpoint      | `endpoint:` + host:port                          | host, port, plus an observed-attributes map (`attrs`) holding what a probe recorded — TLS: negotiated_protocol, negotiated_cipher_suite, alpn, protocols_supported, pqc_hybrid_kex; SSH: banner, host_key_algorithms, kex_algorithms, ciphers, macs. The map keeps TLS and SSH parameters distinct instead of overloading shared fields, and keeps the node (not just the Finding) as the primary carrier per principle 2. |
 | Service       | `service:` + name                                | name, kind (nginx, apache, sshd, ...) |
@@ -52,7 +53,7 @@ projections of it.
 | `terminates_tls_for`| Certificate → Endpoint     | cert presented in handshake at endpoint |
 | `stored_in`         | Certificate/Key → ConfigFile (file/keystore node) | asset physically located in file |
 | `references`        | ConfigFile → Certificate/Key/ConfigFile | config directive points at a path (e.g. `ssl_certificate`) |
-| `signs_with`        | Certificate → Key          | cert's subject public key / signing key linkage |
+| `signs_with`        | Certificate/CertificateRequest → Key | cert's (or CSR's) subject public key / signing key linkage |
 
 ### Scanner limits
 

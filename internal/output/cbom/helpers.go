@@ -154,6 +154,16 @@ func certName(c *graph.CertificateNode) string {
 	return c.ID()
 }
 
+func csrName(c *graph.CertificateRequestNode) string {
+	if cn := commonName(c.Subject); cn != "" {
+		return cn
+	}
+	if c.Subject != "" {
+		return c.Subject
+	}
+	return c.ID()
+}
+
 func keyName(k *graph.KeyNode) string {
 	algo := k.Algorithm
 	if algo == "" {

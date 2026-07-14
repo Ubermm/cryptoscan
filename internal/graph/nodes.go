@@ -16,14 +16,15 @@ type NodeType string
 
 // Node types.
 const (
-	NodeCertificate   NodeType = "Certificate"
-	NodeKey           NodeType = "Key"
-	NodeEndpoint      NodeType = "Endpoint"
-	NodeService       NodeType = "Service"
-	NodeConfigFile    NodeType = "ConfigFile"
-	NodeCryptoLibrary NodeType = "CryptoLibrary"
-	NodeCA            NodeType = "CA"
-	NodeKMSEntry      NodeType = "KMSEntry"
+	NodeCertificate        NodeType = "Certificate"
+	NodeCertificateRequest NodeType = "CertificateRequest"
+	NodeKey                NodeType = "Key"
+	NodeEndpoint           NodeType = "Endpoint"
+	NodeService            NodeType = "Service"
+	NodeConfigFile         NodeType = "ConfigFile"
+	NodeCryptoLibrary      NodeType = "CryptoLibrary"
+	NodeCA                 NodeType = "CA"
+	NodeKMSEntry           NodeType = "KMSEntry"
 )
 
 // Node is the common interface implemented by every typed node struct. Concrete
@@ -115,6 +116,39 @@ func (c *CertificateNode) mergeFrom(other Node) error {
 	mergeStringSet(&c.SAN, o.SAN)
 	mergeString(&c.SPKISHA256, o.SPKISHA256)
 	mergeBool(&c.SelfSigned, o.SelfSigned)
+	c.AddProvenance(o.Prov...)
+	return nil
+}
+
+// CertificateRequestNode identifies a PKCS#10 certificate signing request (CSR)
+// by the SHA-256 of its DER encoding (DESIGN.md §1). A CSR is a distinct crypto
+// asset — proof-of-possession of a key — not a Certificate and not merely a Key;
+// it `signs_with` the Key node derived from its SPKI. It mirrors CertificateNode's
+// typed-field style (no Attrs map, matching the other cert-ish nodes).
+type CertificateRequestNode struct {
+	baseNode
+	Subject            string `json:"subject,omitempty"`
+	Algorithm          string `json:"algorithm,omitempty"`
+	KeySize            int    `json:"key_size,omitempty"`
+	Curve              string `json:"curve,omitempty"`
+	SignatureAlgorithm string `json:"signature_algorithm,omitempty"`
+	SPKISHA256         string `json:"spki_sha256,omitempty"`
+}
+
+// Type implements Node.
+func (*CertificateRequestNode) Type() NodeType { return NodeCertificateRequest }
+
+func (c *CertificateRequestNode) mergeFrom(other Node) error {
+	o, ok := other.(*CertificateRequestNode)
+	if !ok {
+		return typeMismatch(c, other)
+	}
+	mergeString(&c.Subject, o.Subject)
+	mergeString(&c.Algorithm, o.Algorithm)
+	mergeInt(&c.KeySize, o.KeySize)
+	mergeString(&c.Curve, o.Curve)
+	mergeString(&c.SignatureAlgorithm, o.SignatureAlgorithm)
+	mergeString(&c.SPKISHA256, o.SPKISHA256)
 	c.AddProvenance(o.Prov...)
 	return nil
 }
@@ -430,6 +464,16 @@ func CertNodeID(derSHA256 string) (string, error) {
 		return "", err
 	}
 	return "cert:" + h, nil
+}
+
+// CSRNodeID builds a CertificateRequest node ID from the SHA-256 of the CSR's
+// DER encoding (hex) — DESIGN.md §1: `csr:` + hex.
+func CSRNodeID(derSHA256 string) (string, error) {
+	h, err := hexSHA256(derSHA256, "CSR DER")
+	if err != nil {
+		return "", err
+	}
+	return "csr:" + h, nil
 }
 
 // KeyNodeID builds a Key node ID from the SHA-256 of the key's SPKI (hex).

@@ -26,6 +26,7 @@ import (
 // Node shape/color legend (style=filled), keyed by NodeType:
 //
 //	Certificate    box            #cfe8ff  (light blue)
+//	CertificateRequest component  #b9d6ff  (blue)
 //	Key            ellipse        #ffe9a8  (gold)
 //	Endpoint       box            #c9f2d0  (green)
 //	Service        hexagon        #e3d7ff  (lavender)
@@ -91,6 +92,8 @@ func dotStyle(t graph.NodeType) (shape, color string) {
 	switch t {
 	case graph.NodeCertificate:
 		return "box", "#cfe8ff"
+	case graph.NodeCertificateRequest:
+		return "component", "#b9d6ff"
 	case graph.NodeKey:
 		return "ellipse", "#ffe9a8"
 	case graph.NodeEndpoint:
@@ -139,6 +142,12 @@ func nodeLabelParts(n graph.Node) []string {
 			cn = "cert"
 		}
 		return []string{"Certificate", cn, shortHash(v.ID())}
+	case *graph.CertificateRequestNode:
+		cn := commonName(v.Subject)
+		if cn == "" {
+			cn = "csr"
+		}
+		return []string{"CertificateRequest", cn, shortHash(v.ID())}
 	case *graph.KeyNode:
 		desc := v.Algorithm
 		switch {

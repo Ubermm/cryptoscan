@@ -2,6 +2,7 @@ package certs
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/cryptoscan/cryptoscan/internal/corpus"
@@ -92,6 +93,84 @@ func TestNegativesSilent(t *testing.T) {
 
 func hasNegativePrefix(p string) bool {
 	return p == "negatives" || len(p) >= len("negatives/") && p[:len("negatives/")] == "negatives/"
+}
+
+// TestScanIntoGraphCSR checks that a parsed CSR becomes a first-class
+// CertificateRequest node (DESIGN.md §1): the node exists with its attributes,
+// signs_with links it to a Key node, stored_in links it to its file, and the flat
+// csr Finding (the eval contract) is unchanged.
+func TestScanIntoGraphCSR(t *testing.T) {
+	root := corpusRoot()
+	g := graph.New()
+	findings, err := New().ScanIntoGraph(root, g)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	// The flat Finding contract must be untouched: 2 csr findings, class "csr",
+	// carrying algorithm/key_size/subject_cn (never mutated into a node-only shape).
+	var csrFindings int
+	for _, f := range findings {
+		if f.Class == "csr" {
+			csrFindings++
+			if f.Attrs["algorithm"] == nil || f.Attrs["subject_cn"] == nil {
+				t.Errorf("csr finding at %s missing algorithm/subject_cn attrs: %v", f.Path, f.Attrs)
+			}
+		}
+	}
+	if csrFindings != 2 {
+		t.Errorf("csr findings = %d, want 2", csrFindings)
+	}
+
+	// Collect CertificateRequest nodes and index Key node IDs.
+	var csrNodes []*graph.CertificateRequestNode
+	keyIDs := map[string]bool{}
+	for _, n := range g.Nodes() {
+		switch v := n.(type) {
+		case *graph.CertificateRequestNode:
+			csrNodes = append(csrNodes, v)
+		case *graph.KeyNode:
+			keyIDs[v.ID()] = true
+		}
+	}
+	if len(csrNodes) != 2 {
+		t.Fatalf("CertificateRequest nodes = %d, want 2", len(csrNodes))
+	}
+	for _, c := range csrNodes {
+		if c.SPKISHA256 == "" || c.Algorithm == "" || c.Subject == "" {
+			t.Errorf("CSR node %s missing attrs: %+v", c.ID(), c)
+		}
+		if len(c.Provenance()) == 0 {
+			t.Errorf("CSR node %s has no provenance", c.ID())
+		}
+	}
+
+	// Every CSR node must have a signs_with edge to a real Key node and a
+	// stored_in edge to a file node.
+	signsWith := map[string]string{}
+	storedIn := map[string]bool{}
+	for _, e := range g.Edges() {
+		if !strings.HasPrefix(e.From, "csr:") {
+			continue
+		}
+		switch e.Type {
+		case graph.EdgeSignsWith:
+			signsWith[e.From] = e.To
+		case graph.EdgeStoredIn:
+			storedIn[e.From] = true
+		}
+	}
+	for _, c := range csrNodes {
+		to, ok := signsWith[c.ID()]
+		if !ok {
+			t.Errorf("CSR %s has no signs_with edge", c.ID())
+		} else if !keyIDs[to] {
+			t.Errorf("CSR %s signs_with %s, which is not a Key node", c.ID(), to)
+		}
+		if !storedIn[c.ID()] {
+			t.Errorf("CSR %s has no stored_in edge", c.ID())
+		}
+	}
 }
 
 // TestScanIntoGraphPopulates checks the graph projection: every certificate and

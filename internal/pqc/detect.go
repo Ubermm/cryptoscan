@@ -52,6 +52,8 @@ func flagsForNode(n graph.Node, now time.Time) Flags {
 	switch v := n.(type) {
 	case *graph.CertificateNode:
 		return certFlags(v, now)
+	case *graph.CertificateRequestNode:
+		return csrFlags(v)
 	case *graph.KeyNode:
 		return keyFlags(v)
 	case *graph.EndpointNode:
@@ -85,6 +87,19 @@ func certFlags(c *graph.CertificateNode, now time.Time) Flags {
 		f.NotYetValid = true
 	}
 	return f
+}
+
+// csrFlags computes the exposure flags for a CertificateRequest (PKCS#10 CSR)
+// node from its proven attributes. A CSR has a subject public key and a
+// self-signature but no validity window, so the algorithm, weak-key, and
+// weak-signature flags apply while the expiry/not-yet-valid flags never do
+// (DESIGN.md §5: CSRs have no notBefore/notAfter).
+func csrFlags(c *graph.CertificateRequestNode) Flags {
+	return Flags{
+		QuantumVulnerableAlgorithm: isQuantumVulnerableAlgo(c.Algorithm),
+		WeakKey:                    isWeakRSAKey(c.Algorithm, c.KeySize),
+		WeakSignature:              isWeakSignature(c.SignatureAlgorithm),
+	}
 }
 
 // keyFlags computes the exposure flags for a standalone Key node. A key has no

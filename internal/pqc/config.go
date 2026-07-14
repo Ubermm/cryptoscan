@@ -45,6 +45,14 @@ func labelFor(n graph.Node) string {
 			return v.Subject
 		}
 		return v.ID()
+	case *graph.CertificateRequestNode:
+		if cn := commonName(v.Subject); cn != "" {
+			return cn
+		}
+		if v.Subject != "" {
+			return v.Subject
+		}
+		return v.ID()
 	case *graph.KeyNode:
 		algo := v.Algorithm
 		if algo == "" {

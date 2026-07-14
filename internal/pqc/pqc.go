@@ -209,7 +209,7 @@ type Count struct {
 // tallies are sorted by Name so output is reproducible.
 type Summary struct {
 	// TotalNodes is the number of scored (relevant-type) nodes considered:
-	// Certificate, Key, Endpoint, and ConfigFile nodes.
+	// Certificate, CertificateRequest, Key, Endpoint, and ConfigFile nodes.
 	TotalNodes int
 	// FlaggedNodes is the number of those nodes with at least one flag set (i.e.
 	// len(Report.Nodes)).
@@ -243,9 +243,9 @@ type Report struct {
 // It is read-only (the graph is never mutated) and fully deterministic: the same
 // (graph, now) always yields an identical Report, and no wall clock is read.
 //
-// Only Certificate, Key, Endpoint, and ConfigFile nodes are scored; other node
-// types (CA, Service, CryptoLibrary, KMSEntry) carry no algorithm/protocol
-// attributes and never produce a flag. A node is emitted in Report.Nodes only
+// Only Certificate, CertificateRequest, Key, Endpoint, and ConfigFile nodes are
+// scored; other node types (CA, Service, CryptoLibrary, KMSEntry) carry no
+// algorithm/protocol attributes and never produce a flag. A node is emitted in Report.Nodes only
 // when at least one flag is true for it; every relevant node (flagged or not) is
 // counted in Summary.TotalNodes.
 func Score(g *graph.Graph, now time.Time) Report {
@@ -349,7 +349,7 @@ func summarize(_ []NodeExposure) Summary {
 // relevant reports whether a node type participates in PQC scoring.
 func relevant(t graph.NodeType) bool {
 	switch t {
-	case graph.NodeCertificate, graph.NodeKey, graph.NodeEndpoint, graph.NodeConfigFile:
+	case graph.NodeCertificate, graph.NodeCertificateRequest, graph.NodeKey, graph.NodeEndpoint, graph.NodeConfigFile:
 		return true
 	default:
 		return false

@@ -52,8 +52,10 @@ const (
 	// EdgeReferences links ConfigFile → Certificate/Key/ConfigFile (a config
 	// directive points at a path).
 	EdgeReferences EdgeType = "references"
-	// EdgeSignsWith links Certificate → Key (subject public key / signing key
-	// linkage).
+	// EdgeSignsWith links Certificate/CertificateRequest → Key (the cert's or
+	// CSR's subject public key / signing key linkage). Edge validation is
+	// type-agnostic on the endpoints (AddEdge checks only the edge type and
+	// non-empty From/To), so a CertificateRequest source is accepted.
 	EdgeSignsWith EdgeType = "signs_with"
 )
 
