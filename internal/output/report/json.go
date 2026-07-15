@@ -105,10 +105,14 @@ func buildJSONSummary(findings []finding, s pqc.Summary) jsonSummary {
 		byType[f.typ]++
 	}
 	return jsonSummary{
-		TotalFindings:     len(findings),
-		ByType:            toJSONCounts(byType),
-		TotalAssetsScored: s.TotalNodes,
-		FlaggedAssets:     s.FlaggedNodes,
+		TotalFindings: len(findings),
+		ByType:        toJSONCounts(byType),
+		// total_assets_scored / flagged_assets describe the REPORT's own findings so
+		// they reconcile with total_findings and the by_type total, rather than
+		// pqc.Summary's internal node count (which includes placeholder
+		// cert-reference ConfigFile nodes that are never emitted as findings).
+		TotalAssetsScored: len(findings),
+		FlaggedAssets:     flaggedFindings(findings),
 		ByFlag:            countsFrom(s.ByFlag),
 		BySeverity:        countsFrom(s.BySeverity),
 		QuantumVulnerable: s.QuantumVulnerableAssets,

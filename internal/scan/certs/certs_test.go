@@ -1,6 +1,7 @@
 package certs
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -72,6 +73,34 @@ func TestEvalScorecard(t *testing.T) {
 	for _, fn := range sc.FalseNegatives {
 		if want[fn.Class] {
 			t.Errorf("false negative: id=%s class=%s path=%s alias=%s mismatches=%v", fn.ID, fn.Class, fn.Path, fn.Alias, fn.Mismatches)
+		}
+	}
+}
+
+// TestSingleFileScanRendersBasename asserts that scanning a single REGULAR FILE
+// (not a directory) renders the finding location as the file's basename, not "."
+// — the fix for the ".:11"/".":0 defect where filepath.Rel(root, path) collapses
+// to "." when the scan root IS the file being scanned.
+func TestSingleFileScanRendersBasename(t *testing.T) {
+	file := filepath.Join(corpusRoot(), "certs", "rsa-2048-selfsigned.pem")
+	if _, err := os.Stat(file); err != nil {
+		t.Skipf("fixture missing: %v", err)
+	}
+	findings, err := New().Scan(file)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if len(findings) == 0 {
+		t.Fatal("no findings from single-file scan")
+	}
+	for _, f := range findings {
+		if f.Path != "rsa-2048-selfsigned.pem" {
+			t.Errorf("single-file Finding.Path = %q, want %q (basename, not \".\")", f.Path, "rsa-2048-selfsigned.pem")
+		}
+		for _, p := range f.Provenance {
+			if p.Location == "." || strings.HasPrefix(p.Location, "./") {
+				t.Errorf("single-file provenance Location = %q, want basename", p.Location)
+			}
 		}
 	}
 }

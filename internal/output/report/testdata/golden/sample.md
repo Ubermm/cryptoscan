@@ -4,7 +4,7 @@ _Generated at 2026-01-01T00:00:00Z_
 
 ## Estate summary
 
-Assets scored: 10 (flagged with at least one PQC exposure: 8)
+Assets scored: 9 (flagged with at least one PQC exposure: 8)
 
 ### Assets by type
 

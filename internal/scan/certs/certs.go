@@ -17,6 +17,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -60,7 +61,7 @@ func (s *Scanner) ScanIntoGraph(root string, g *graph.Graph) ([]scan.Finding, er
 	if g == nil {
 		g = graph.New()
 	}
-	r := &run{root: root, g: g}
+	r := &run{root: root, relBase: relBaseFor(root), g: g}
 
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -99,7 +100,14 @@ func (s *Scanner) ScanIntoGraph(root string, g *graph.Graph) ([]scan.Finding, er
 
 // run holds the mutable state of a single scan.
 type run struct {
-	root     string
+	root string
+	// relBase is the base directory that Finding.Path and provenance locations are
+	// made relative to. For a directory root it is root itself; for a single
+	// regular-file root it is the file's PARENT, so a single-file scan renders the
+	// file's basename (e.g. "server.pem") exactly as a directory scan would,
+	// instead of filepath.Rel(file,file) collapsing to ".". Walking still targets
+	// root; only the display base differs (DESIGN.md provenance contract).
+	relBase  string
 	g        *graph.Graph
 	findings []scan.Finding
 	certs    []certRec // every certificate observed, for issuer resolution
@@ -123,11 +131,23 @@ type certRec struct {
 // rel converts an absolute/host path to a corpus-root-relative, forward-slash
 // path for Finding.Path and provenance (scan.Finding contract).
 func (r *run) rel(path string) string {
-	rp, err := filepath.Rel(r.root, path)
+	rp, err := filepath.Rel(r.relBase, path)
 	if err != nil {
 		rp = path
 	}
 	return filepath.ToSlash(rp)
+}
+
+// relBaseFor returns the base directory that Finding/display paths are made
+// relative to. For a directory (or unstattable) root it is root itself; for a
+// single regular file it is the file's parent directory, so a single-file scan
+// renders the file's basename rather than "." (filepath.Rel(file, file) == ".").
+// Directory-scan behaviour is unchanged (relBase == root).
+func relBaseFor(root string) string {
+	if info, err := os.Stat(root); err == nil && info.Mode().IsRegular() {
+		return filepath.Dir(root)
+	}
+	return root
 }
 
 // processFile reads one file and dispatches it to the PEM path or, if it holds

@@ -144,10 +144,11 @@ func ScanIntoGraph(root string, g *graph.Graph) ([]scan.Finding, error) {
 	if err != nil {
 		return nil, err
 	}
+	base := relBaseFor(root)
 	out := make([]scan.Finding, 0, len(hits))
 	for _, h := range hits {
 		out = append(out, h.finding())
-		populate(root, h, g)
+		populate(base, h, g)
 	}
 	return out, nil
 }
@@ -206,6 +207,7 @@ func walk(root string) ([]hit, error) {
 	if _, err := os.Stat(root); err != nil {
 		return nil, fmt.Errorf("config: cannot access root %q: %w", root, err)
 	}
+	base := relBaseFor(root)
 
 	var hits []hit
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, walkErr error) error {
@@ -219,7 +221,7 @@ func walk(root string) ([]hit, error) {
 		if res == nil {
 			return nil
 		}
-		rel, rerr := filepath.Rel(root, p)
+		rel, rerr := filepath.Rel(base, p)
 		if rerr != nil {
 			rel = p
 		}
@@ -293,10 +295,24 @@ func (h hit) finding() scan.Finding {
 	}
 }
 
+// relBaseFor returns the base directory that Finding/display paths are made
+// relative to. For a directory (or unstattable) root it is root itself; for a
+// single regular file it is the file's parent directory, so a single-file scan
+// renders the file's basename (mixed-vhosts.conf:11) rather than "." — matching
+// what a directory scan shows. Directory-scan behaviour is unchanged.
+func relBaseFor(root string) string {
+	if info, err := os.Stat(root); err == nil && info.Mode().IsRegular() {
+		return filepath.Dir(root)
+	}
+	return root
+}
+
 // populate upserts the ConfigFile node for a hit and a `references` edge for
 // each cert/key ref. Any per-node/edge error is swallowed (robustness): the
-// graph is best-effort, the Findings are the scored contract.
-func populate(root string, h hit, g *graph.Graph) {
+// graph is best-effort, the Findings are the scored contract. base is the
+// rel-path base (see relBaseFor): the scan root for a directory, or the file's
+// parent for a single-file scan.
+func populate(base string, h hit, g *graph.Graph) {
 	fromID, err := graph.FileNodeID(h.disk)
 	if err != nil {
 		return
@@ -321,7 +337,7 @@ func populate(root string, h hit, g *graph.Graph) {
 	}
 
 	for _, ref := range h.res.refs {
-		addRef(root, h, g, fromID, ref)
+		addRef(base, h, g, fromID, ref)
 	}
 
 	// Per-endpoint attribution (DESIGN.md §1 ConfigEndpoint). Each TLS-terminating
@@ -363,7 +379,7 @@ func populate(root string, h hit, g *graph.Graph) {
 		})
 		// references: endpoint → cert/key file nodes (resolved as file-level does).
 		for _, ref := range ep.refs {
-			addRef(root, h, g, epID, ref)
+			addRef(base, h, g, epID, ref)
 		}
 	}
 }

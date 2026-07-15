@@ -154,6 +154,20 @@ func buildFindings(g *graph.Graph, exposure pqc.Report) []finding {
 	return out
 }
 
+// flaggedFindings counts the emitted findings that carry at least one PQC
+// exposure flag. It is the report-self-consistent "flagged" headcount (the
+// headline's M): derived from the findings the report actually emits, not from
+// pqc.Summary's internal flagged-node total.
+func flaggedFindings(findings []finding) int {
+	n := 0
+	for _, f := range findings {
+		if len(f.pqcFlags) > 0 {
+			n++
+		}
+	}
+	return n
+}
+
 // findingType maps a node to its principle-4 asset type, reporting false for node
 // kinds that are not emitted as findings.
 //

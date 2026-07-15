@@ -45,8 +45,12 @@ func WriteMarkdown(w io.Writer, g *graph.Graph, exposure pqc.Report, opts Option
 // writeMarkdownSummary renders the estate-summary section.
 func writeMarkdownSummary(b *strings.Builder, findings []finding, s pqc.Summary) {
 	b.WriteString("## Estate summary\n\n")
+	// The headline describes the REPORT's own findings, so it is self-consistent
+	// with the "Assets by type" total and the findings-table row count below. It
+	// is NOT pqc.Summary.TotalNodes, which counts internal graph nodes (including
+	// placeholder cert-reference ConfigFile nodes) an auditor never sees as a row.
 	fmt.Fprintf(b, "Assets scored: %d (flagged with at least one PQC exposure: %d)\n\n",
-		s.TotalNodes, s.FlaggedNodes)
+		len(findings), flaggedFindings(findings))
 
 	// Assets by finding type.
 	b.WriteString("### Assets by type\n\n")

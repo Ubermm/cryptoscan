@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -11,6 +12,49 @@ import (
 
 // corpusRoot is the repo corpus relative to this package (internal/scan/config).
 const corpusRoot = "../../../testdata/corpus"
+
+// TestSingleFileScanRendersBasename asserts that scanning a single REGULAR FILE
+// (not a directory) renders the config's location as its basename, not "." — the
+// fix for the ".:11" defect where filepath.Rel(root, path) is "." when the scan
+// root IS the file. The ConfigEndpoint nodes (per-vhost) must carry the same
+// basename so an auditor sees "mixed-vhosts.conf:11", not ".:11".
+func TestSingleFileScanRendersBasename(t *testing.T) {
+	file := filepath.Join(corpusRoot, "configs", "realworld", "mixed-vhosts.conf")
+	if _, err := os.Stat(file); err != nil {
+		t.Skipf("fixture missing: %v", err)
+	}
+	g := graph.New()
+	findings, err := ScanIntoGraph(file, g)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if len(findings) == 0 {
+		t.Fatal("no findings from single-file config scan")
+	}
+	for _, f := range findings {
+		if f.Path != "mixed-vhosts.conf" {
+			t.Errorf("single-file Finding.Path = %q, want %q (basename, not \".\")", f.Path, "mixed-vhosts.conf")
+		}
+		for _, p := range f.Provenance {
+			if p.Location != "mixed-vhosts.conf" {
+				t.Errorf("single-file provenance Location = %q, want %q", p.Location, "mixed-vhosts.conf")
+			}
+		}
+	}
+	// Per-vhost ConfigEndpoint nodes must also use the basename path.
+	var sawEndpoint bool
+	for _, n := range g.Nodes() {
+		if ep, ok := n.(*graph.ConfigEndpointNode); ok {
+			sawEndpoint = true
+			if ep.Path != "mixed-vhosts.conf" {
+				t.Errorf("ConfigEndpoint.Path = %q, want %q", ep.Path, "mixed-vhosts.conf")
+			}
+		}
+	}
+	if !sawEndpoint {
+		t.Error("expected at least one ConfigEndpoint node from mixed-vhosts.conf")
+	}
+}
 
 // TestIntegrationScorecard is the Definition-of-Done gate: scoring this
 // scanner's findings against the ground-truth corpus must yield perfect
