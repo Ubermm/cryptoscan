@@ -109,14 +109,26 @@ func TestScoreCorpusGroundTruth(t *testing.T) {
 		t.Errorf("Summary.Expiring = %d, want 0", s.Expiring)
 	}
 
-	// legacy_protocol: the five curated sub-TLS-1.2 fixtures plus the two
-	// held-out real-world legacy configs (realworld/mixed-vhosts.conf,
-	// realworld/mozilla-old.conf) — all correctly flagged.
+	// legacy_protocol: the same seven sub-TLS-1.2 configs as before, but the flag
+	// is now attributed PER ENDPOINT for every config that has server/vhost/bind
+	// blocks — the precise "which vhost is weak" attribution (DESIGN.md §1
+	// ConfigEndpoint). Of the seven legacy configs, six carry TLS-terminating
+	// blocks (nginx/legacy, nginx/multi-server, apache/legacy, haproxy/legacy,
+	// realworld/mixed-vhosts, realworld/mozilla-old) and are now flagged on their
+	// ConfigEndpoint node; only openssl/legacy.cnf has no block model and keeps its
+	// file-level flag. The FILE-level flag is SUPPRESSED for the six with endpoints
+	// to avoid double-counting (see filesWithEndpoints). Net legacy_protocol count
+	// is unchanged at 7 (6 endpoints + 1 file), but the node types shift:
+	//   ConfigFile flagged: 7 -> 1  (only openssl/legacy.cnf)
+	//   ConfigEndpoint flagged: 0 -> 6
 	if got := flagCount(s.ByFlag, FlagLegacyProtocol); got != 7 {
-		t.Errorf("legacy_protocol count = %d, want 7", got)
+		t.Errorf("legacy_protocol count = %d, want 7 (6 endpoints + 1 file)", got)
 	}
-	if got := flagCount(s.ByNodeType, "ConfigFile"); got != 7 {
-		t.Errorf("flagged ConfigFile nodes = %d, want 7", got)
+	if got := flagCount(s.ByNodeType, "ConfigFile"); got != 1 {
+		t.Errorf("flagged ConfigFile nodes = %d, want 1 (openssl/legacy.cnf; the rest attributed to endpoints)", got)
+	}
+	if got := flagCount(s.ByNodeType, "ConfigEndpoint"); got != 6 {
+		t.Errorf("flagged ConfigEndpoint nodes = %d, want 6", got)
 	}
 
 	// No probe endpoints in an fs-only graph.
@@ -143,7 +155,13 @@ func TestCorpusSpecificNodes(t *testing.T) {
 	weakKeyCNs := map[string]bool{}
 	weakSigCNs := map[string]bool{}
 	expiredCNs := map[string]bool{}
-	legacyPaths := map[string]bool{}
+	legacyFiles := map[string]bool{}
+	// legacy endpoints key on config file path -> the endpoint's server_name:port
+	// label, the precise per-vhost attribution DESIGN.md §1 calls for. Each legacy
+	// config here has exactly one legacy block, so path is a unique key (two files
+	// share the label "legacy.example.com:443" — nginx and apache — so we cannot
+	// key on the label alone).
+	legacyEndpoints := map[string]string{}
 	for _, e := range rep.Nodes {
 		if e.Flags.WeakKey && e.NodeType == graph.NodeCertificate {
 			weakKeyCNs[e.Label] = true
@@ -155,7 +173,10 @@ func TestCorpusSpecificNodes(t *testing.T) {
 			expiredCNs[e.Label] = true
 		}
 		if e.Flags.LegacyProtocol && e.NodeType == graph.NodeConfigFile {
-			legacyPaths[e.Label] = true
+			legacyFiles[e.Label] = true
+		}
+		if e.Flags.LegacyProtocol && e.NodeType == graph.NodeConfigEndpoint {
+			legacyEndpoints[endpointNodePath(g, e.NodeID)] = e.Label
 		}
 	}
 
@@ -178,17 +199,28 @@ func TestCorpusSpecificNodes(t *testing.T) {
 		t.Errorf("expired certs = %v, want %v", keys(expiredCNs), keys(wantExpired))
 	}
 
-	wantLegacy := map[string]bool{
-		"configs/nginx/legacy.conf":           true,
-		"configs/nginx/multi-server.conf":     true,
-		"configs/apache/legacy.conf":          true,
-		"configs/openssl/legacy.cnf":          true,
-		"configs/haproxy/legacy.cfg":          true,
-		"configs/realworld/mixed-vhosts.conf": true, // held-out real-world legacy
-		"configs/realworld/mozilla-old.conf":  true, // held-out real-world legacy
+	// Endpoint-attributed legacy: every server/vhost/bind-based legacy config is now
+	// flagged on its ConfigEndpoint node, NAMING the weak block (server_name:port).
+	// This is the auditor-facing "which vhost is weak" attribution — e.g. within
+	// mixed-vhosts.conf ONLY legacy.internal.example.com:8443 is flagged, not the
+	// clean www.example.com:443 block.
+	wantLegacyEndpoints := map[string]string{
+		"configs/nginx/legacy.conf":           "legacy.example.com:443",
+		"configs/nginx/multi-server.conf":     "b.example.com:8443",
+		"configs/apache/legacy.conf":          "legacy.example.com:443",
+		"configs/haproxy/legacy.cfg":          ":443", // haproxy bind has no server_name
+		"configs/realworld/mixed-vhosts.conf": "legacy.internal.example.com:8443",
+		"configs/realworld/mozilla-old.conf":  "compat.example.com:443",
 	}
-	if !reflect.DeepEqual(legacyPaths, wantLegacy) {
-		t.Errorf("legacy configs = %v, want %v", keys(legacyPaths), keys(wantLegacy))
+	if !reflect.DeepEqual(legacyEndpoints, wantLegacyEndpoints) {
+		t.Errorf("legacy endpoints = %v, want %v", legacyEndpoints, wantLegacyEndpoints)
+	}
+
+	// File-level legacy: only openssl/legacy.cnf (no block model) keeps a file-level
+	// legacy flag; every other legacy config's flag moved to its endpoint(s).
+	wantLegacyFiles := map[string]bool{"configs/openssl/legacy.cnf": true}
+	if !reflect.DeepEqual(legacyFiles, wantLegacyFiles) {
+		t.Errorf("legacy files = %v, want %v", keys(legacyFiles), keys(wantLegacyFiles))
 	}
 
 	// The modern config fixtures must be present in the graph AND unflagged.
@@ -205,10 +237,24 @@ func TestCorpusSpecificNodes(t *testing.T) {
 		if !present[p] {
 			t.Errorf("modern config %s not found as a ConfigFile node", p)
 		}
-		if legacyPaths[p] {
-			t.Errorf("modern config %s wrongly flagged legacy_protocol", p)
+		if legacyFiles[p] {
+			t.Errorf("modern config %s wrongly flagged legacy_protocol (file)", p)
+		}
+		if _, ok := legacyEndpoints[p]; ok {
+			t.Errorf("modern config %s wrongly flagged legacy_protocol (endpoint)", p)
 		}
 	}
+}
+
+// endpointNodePath returns the ConfigEndpoint node's display path for a node ID,
+// so a legacy endpoint can be attributed back to its config file in assertions.
+func endpointNodePath(g *graph.Graph, id string) string {
+	if n, ok := g.Node(id); ok {
+		if ce, ok := n.(*graph.ConfigEndpointNode); ok {
+			return ce.Path
+		}
+	}
+	return ""
 }
 
 // TestScoreDeterministic verifies Score is a pure function of (graph, now):

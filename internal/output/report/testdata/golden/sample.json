@@ -1,7 +1,7 @@
 {
   "generated_at": "2026-01-01T00:00:00Z",
   "summary": {
-    "total_findings": 7,
+    "total_findings": 9,
     "by_type": [
       {
         "name": "certificate",
@@ -13,15 +13,15 @@
       },
       {
         "name": "tls_config",
-        "count": 1
+        "count": 3
       },
       {
         "name": "tls_endpoint",
         "count": 1
       }
     ],
-    "total_assets_scored": 7,
-    "flagged_assets": 7,
+    "total_assets_scored": 10,
+    "flagged_assets": 8,
     "by_flag": [
       {
         "name": "expired",
@@ -29,7 +29,7 @@
       },
       {
         "name": "legacy_protocol",
-        "count": 1
+        "count": 2
       },
       {
         "name": "quantum_vulnerable_algorithm",
@@ -51,11 +51,11 @@
       },
       {
         "name": "high",
-        "count": 5
+        "count": 6
       }
     ],
     "quantum_vulnerable": 6,
-    "legacy_protocol": 1,
+    "legacy_protocol": 2,
     "legacy_endpoints": 0,
     "expired": 1,
     "expiring": 0,
@@ -155,6 +155,20 @@
       "algorithm": "TLSv1, TLSv1.1, TLSv1.2",
       "key_size": "",
       "locations": [
+        "legacy.internal.example.com:8443 (configs/nginx/mixed-vhosts.conf:11)"
+      ],
+      "expiry": "",
+      "issuer": "",
+      "pqc_exposure": [
+        "legacy_protocol"
+      ],
+      "severity": "high"
+    },
+    {
+      "type": "tls_config",
+      "algorithm": "TLSv1, TLSv1.1, TLSv1.2",
+      "key_size": "",
+      "locations": [
         "configs/nginx/legacy.conf:12"
       ],
       "expiry": "",
@@ -163,6 +177,18 @@
         "legacy_protocol"
       ],
       "severity": "high"
+    },
+    {
+      "type": "tls_config",
+      "algorithm": "TLSv1.2, TLSv1.3",
+      "key_size": "",
+      "locations": [
+        "www.example.com:443 (configs/nginx/mixed-vhosts.conf:3)"
+      ],
+      "expiry": "",
+      "issuer": "",
+      "pqc_exposure": [],
+      "severity": "none"
     }
   ]
 }

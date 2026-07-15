@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"testing"
@@ -78,6 +80,109 @@ func TestNginxEndpoints(t *testing.T) {
 	}
 	if eps[0].ecdhCurve != "X25519:secp384r1" {
 		t.Errorf("ecdh_curve = %q, want X25519:secp384r1", eps[0].ecdhCurve)
+	}
+}
+
+// TestFoldMultipleIncludes proves issue #6 is fixed: a server block that splits
+// its TLS state across TWO includes — a policy snippet (protocols/ciphers/ecdh)
+// followed by a certificate snippet (ssl_certificate/ssl_certificate_key) — folds
+// EVERY include's directives into the endpoint, with no first-include short-circuit
+// that drops the second include's cert_refs.
+func TestFoldMultipleIncludes(t *testing.T) {
+	tests := []struct {
+		name       string
+		format     string
+		site       string
+		files      map[string]string
+		wantProtos []string
+		wantCipher string // a cipher that must be present
+		wantCerts  []string
+		wantKeyRef bool
+		wantECDH   string
+	}{
+		{
+			name:   "nginx two includes: policy then certificate",
+			format: "nginx",
+			site: `http {
+  server {
+    listen 443 ssl;
+    server_name secure.example.com;
+    include inc/policy_strict.conf;
+    include inc/certificate_files.conf;
+  }
+}`,
+			files: map[string]string{
+				"inc/policy_strict.conf": "ssl_protocols TLSv1.2 TLSv1.3;\nssl_ciphers EECDH+AES;\nssl_ecdh_curve X25519;\n",
+				"inc/certificate_files.conf": "ssl_certificate /etc/nginx/certs/default.crt;\n" +
+					"ssl_certificate_key /etc/nginx/certs/default.key;\n",
+			},
+			wantProtos: []string{"TLSv1.2", "TLSv1.3"},
+			wantCipher: "EECDH+AES",
+			wantCerts:  []string{"/etc/nginx/certs/default.crt"},
+			wantKeyRef: true,
+			wantECDH:   "X25519",
+		},
+		{
+			name:   "apache two includes: policy then certificate",
+			format: "apache",
+			site: `<VirtualHost *:443>
+  ServerName secure.example.com
+  SSLEngine on
+  Include inc/policy.conf
+  Include inc/cert.conf
+</VirtualHost>`,
+			files: map[string]string{
+				"inc/policy.conf": "SSLProtocol -all +TLSv1.2 +TLSv1.3\nSSLCipherSuite ECDHE-RSA-AES128-GCM-SHA256\n",
+				"inc/cert.conf":   "SSLCertificateFile /etc/ssl/default.crt\nSSLCertificateKeyFile /etc/ssl/default.key\n",
+			},
+			wantProtos: []string{"TLSv1.2", "TLSv1.3"},
+			wantCipher: "ECDHE-RSA-AES128-GCM-SHA256",
+			wantCerts:  []string{"/etc/ssl/default.crt"},
+			wantKeyRef: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for rel, body := range tt.files {
+				p := filepath.Join(dir, filepath.FromSlash(rel))
+				if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var eps []*endpointResult
+			switch tt.format {
+			case "nginx":
+				eps = nginxEndpoints(tt.site)
+			case "apache":
+				eps = apacheEndpoints(tt.site)
+			}
+			if len(eps) != 1 {
+				t.Fatalf("endpoints = %d, want 1", len(eps))
+			}
+			ep := eps[0]
+			// Cert refs are the payload of the SECOND include: they MUST fold in.
+			foldIncludes(tt.format, filepath.Join(dir, "site.conf"), ep)
+			if !sortEqual(ep.certRefs, tt.wantCerts) {
+				t.Errorf("cert_refs = %v, want %v (second include dropped — issue #6)", ep.certRefs, tt.wantCerts)
+			}
+			if ep.hasKeyRef != tt.wantKeyRef {
+				t.Errorf("hasKeyRef = %v, want %v", ep.hasKeyRef, tt.wantKeyRef)
+			}
+			if !sortEqual(ep.protocols, tt.wantProtos) {
+				t.Errorf("protocols = %v, want %v (first include dropped)", ep.protocols, tt.wantProtos)
+			}
+			if !contains(ep.ciphers, tt.wantCipher) {
+				t.Errorf("ciphers = %v, want to contain %q", ep.ciphers, tt.wantCipher)
+			}
+			if tt.wantECDH != "" && ep.ecdhCurve != tt.wantECDH {
+				t.Errorf("ecdh_curve = %q, want %q", ep.ecdhCurve, tt.wantECDH)
+			}
+		})
 	}
 }
 

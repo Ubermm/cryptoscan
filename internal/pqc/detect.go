@@ -60,6 +60,8 @@ func flagsForNode(n graph.Node, now time.Time) Flags {
 		return endpointFlags(v)
 	case *graph.ConfigFileNode:
 		return configFlags(v)
+	case *graph.ConfigEndpointNode:
+		return configEndpointFlags(v)
 	default:
 		return Flags{}
 	}
@@ -146,6 +148,24 @@ func endpointFlags(e *graph.EndpointNode) Flags {
 // re-derived from raw directives here (DESIGN.md §1). See configLegacy.
 func configFlags(c *graph.ConfigFileNode) Flags {
 	return Flags{LegacyProtocol: configLegacy(c)}
+}
+
+// configEndpointFlags computes the exposure flags for a ConfigEndpoint node — a
+// single server/vhost/frontend-bind block resolved on its own (DESIGN.md §1). The
+// legacy_protocol flag is set when the block's RESOLVED protocol set (carried on
+// Attrs by the config scanner, per-endpoint) admits SSLv3/TLSv1/TLSv1.1. This is
+// per-endpoint attribution: a weak protocol is provable against THIS block's
+// host:port, not merely the file. The resolution is read off the node, never
+// re-derived from raw directives here (DESIGN.md §1).
+func configEndpointFlags(e *graph.ConfigEndpointNode) Flags {
+	var f Flags
+	for _, p := range strListAttr(e.Attrs, "protocols") {
+		if isLegacyProto(p) {
+			f.LegacyProtocol = true
+			break
+		}
+	}
+	return f
 }
 
 // --- predicates ---
@@ -251,6 +271,25 @@ func boolAttr(m map[string]any, k string) bool {
 	}
 	v, ok := m[k].(bool)
 	return ok && v
+}
+
+// intAttr reads an integer attribute, tolerating both the native int the scanner
+// stores and the float64 a JSON round-trip would produce. A missing/other-typed
+// key yields 0.
+func intAttr(m map[string]any, k string) int {
+	if m == nil {
+		return 0
+	}
+	switch v := m[k].(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	default:
+		return 0
+	}
 }
 
 func strAttr(m map[string]any, k string) string {

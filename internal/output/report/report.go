@@ -100,9 +100,19 @@ func buildFindings(g *graph.Graph, exposure pqc.Report) []finding {
 		byID[e.NodeID] = e
 	}
 
+	// A ConfigFile that has ConfigEndpoint children defers to those endpoints: its
+	// file-level tls_config finding is SUPPRESSED so the report names the precise
+	// weak vhost instead of the whole file (the endpoints are strictly more
+	// informative). Endpoint-less configs (openssl.cnf, ssh_config, bare include
+	// snippets) have no such children and keep their file-level finding.
+	suppressedFiles := filesWithEndpoints(g)
+
 	var out []finding
 	if g != nil {
 		for _, n := range g.Nodes() {
+			if cf, ok := n.(*graph.ConfigFileNode); ok && suppressedFiles[cf.ID()] {
+				continue
+			}
 			typ, ok := findingType(n)
 			if !ok {
 				continue
@@ -181,9 +191,33 @@ func findingType(n graph.Node) (string, bool) {
 			// not crypto assets themselves; the cert/key they hold is the finding.
 			return "", false
 		}
+	case *graph.ConfigEndpointNode:
+		// A ConfigEndpoint is one server/vhost/frontend-bind block of a config: it
+		// surfaces as the SAME principle-4 type as the file (tls_config) but NAMES
+		// the specific endpoint in its location, so an auditor sees which vhost is
+		// weak — the per-endpoint attribution DESIGN.md §1 calls for.
+		return "tls_config", true
 	default:
 		return "", false
 	}
+}
+
+// filesWithEndpoints returns the set of ConfigFile node IDs that have at least one
+// ConfigEndpoint child, discovered from the graph's `stored_in` edges
+// (cfgendpoint → file). The report suppresses the file-level tls_config finding for
+// these files (their endpoints carry the precise attribution). Mirrors the
+// identically-named suppression in internal/pqc.
+func filesWithEndpoints(g *graph.Graph) map[string]bool {
+	out := map[string]bool{}
+	if g == nil {
+		return out
+	}
+	for _, e := range g.Edges() {
+		if e.Type == graph.EdgeStoredIn && strings.HasPrefix(e.From, "cfgendpoint:") {
+			out[e.To] = true
+		}
+	}
+	return out
 }
 
 // algorithmFor renders the principle-4 "algorithm" field: the asset's public-key
@@ -206,6 +240,11 @@ func algorithmFor(n graph.Node) string {
 		if v.Format == "sshd" {
 			return sshConfigContext(v.Attrs)
 		}
+		return tlsConfigContext(v.Attrs)
+	case *graph.ConfigEndpointNode:
+		// The endpoint's resolved protocol set, rendered like a file-level
+		// tls_config (no new column): the algorithm cell shows the protocols so a
+		// legacy block's "TLSv1, TLSv1.1, TLSv1.2" is visible at a glance.
 		return tlsConfigContext(v.Attrs)
 	default:
 		return ""
@@ -327,6 +366,9 @@ func keySizeFor(n graph.Node) string {
 // lexically), so a certificate stored on disk AND observed at an endpoint lists
 // both locations on its single finding.
 func locationsFor(n graph.Node) []string {
+	if ce, ok := n.(*graph.ConfigEndpointNode); ok {
+		return configEndpointLocations(ce)
+	}
 	type loc struct {
 		rank int
 		text string
@@ -369,6 +411,72 @@ func locationsFor(n graph.Node) []string {
 		out = append(out, l.text)
 	}
 	return out
+}
+
+// configEndpointLocations renders the principle-4 "location" field for a
+// ConfigEndpoint: the endpoint IDENTITY (server_name:port) followed by the config
+// file:line it was resolved from, e.g.
+// "legacy.internal.example.com:8443 (configs/realworld/mixed-vhosts.conf:11)".
+// This is the auditor-facing "which vhost is weak" attribution — the identity
+// names the block, the parenthesised file:line proves where.
+func configEndpointLocations(ce *graph.ConfigEndpointNode) []string {
+	fileLine := ce.Path
+	for _, p := range ce.Provenance() {
+		if p.Source == graph.SourceConfig && p.Location != "" {
+			fileLine = p.Location
+			if p.Line > 0 {
+				fileLine += ":" + strconv.Itoa(p.Line)
+			}
+			break
+		}
+	}
+	ident := endpointIdentity(ce)
+	if ident == "" {
+		return []string{fileLine}
+	}
+	if fileLine == "" {
+		return []string{ident}
+	}
+	return []string{ident + " (" + fileLine + ")"}
+}
+
+// endpointIdentity builds the server_name:port identity of a ConfigEndpoint,
+// falling back to the first listen/bind token, then to path#index — so every
+// endpoint (including a haproxy bind with no server_name) is always nameable.
+func endpointIdentity(ce *graph.ConfigEndpointNode) string {
+	names := strListAttr(ce.Attrs, "server_name")
+	port := intAttr(ce.Attrs, "port")
+	if len(names) > 0 && names[0] != "" {
+		if port > 0 {
+			return names[0] + ":" + strconv.Itoa(port)
+		}
+		return names[0]
+	}
+	if listens := strListAttr(ce.Attrs, "listen"); len(listens) > 0 && listens[0] != "" {
+		return listens[0]
+	}
+	if ce.Path != "" {
+		return ce.Path + "#" + strconv.Itoa(ce.BlockIndex)
+	}
+	return ce.ID()
+}
+
+// intAttr reads an integer attribute, tolerating the native int the scanner stores
+// and the float64 a JSON round-trip would produce. A missing/other-typed key is 0.
+func intAttr(m map[string]any, k string) int {
+	if m == nil {
+		return 0
+	}
+	switch v := m[k].(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	default:
+		return 0
+	}
 }
 
 // expiryFor renders the principle-4 "expiry" field: a certificate's notAfter

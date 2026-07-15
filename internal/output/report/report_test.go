@@ -94,6 +94,8 @@ func buildSampleGraph(t *testing.T) *graph.Graph {
 	endpoint.NodeID = "endpoint:leaf.example.com:443"
 	endpoint.AddProvenance(graph.Provenance{Source: graph.SourceProbe, Location: "leaf.example.com:443", Detail: "tls handshake"})
 
+	// An endpoint-LESS tls_config (e.g. a bare include snippet): no ConfigEndpoint
+	// children, so it keeps its file-level legacy_protocol finding.
 	cfg := &graph.ConfigFileNode{
 		Path: "configs/nginx/legacy.conf", Format: "nginx",
 		Directives: []graph.Directive{{Name: "ssl_protocols", Value: "TLSv1 TLSv1.1 TLSv1.2", Line: 12}},
@@ -102,9 +104,55 @@ func buildSampleGraph(t *testing.T) *graph.Graph {
 	cfg.NodeID = "file:/corpus/configs/nginx/legacy.conf"
 	cfg.AddProvenance(graph.Provenance{Source: graph.SourceConfig, Location: "configs/nginx/legacy.conf", Line: 12, Detail: "ssl_protocols"})
 
-	for _, n := range []graph.Node{leaf, expired, weak, sha1, key, endpoint, cfg} {
+	// A multi-vhost config WITH ConfigEndpoint children: the file-level tls_config
+	// finding is SUPPRESSED and the two per-endpoint findings carry the precise
+	// attribution — only legacy.internal.example.com:8443 is flagged, while
+	// www.example.com:443 is clean. This is the per-endpoint differentiator.
+	mixedFileID := "file:/corpus/configs/nginx/mixed-vhosts.conf"
+	mixed := &graph.ConfigFileNode{
+		Path: "configs/nginx/mixed-vhosts.conf", Format: "nginx",
+		Directives: []graph.Directive{{Name: "ssl_protocols", Value: "TLSv1 TLSv1.1 TLSv1.2 TLSv1.3", Line: 6}},
+		// File-level attrs are the per-file UNION rollup (DESIGN.md §1).
+		Attrs: map[string]any{"protocols": []string{"TLSv1", "TLSv1.1", "TLSv1.2", "TLSv1.3"}},
+	}
+	mixed.NodeID = mixedFileID
+	mixed.AddProvenance(graph.Provenance{Source: graph.SourceConfig, Location: "configs/nginx/mixed-vhosts.conf", Line: 6, Detail: "ssl_protocols"})
+
+	epClean := &graph.ConfigEndpointNode{
+		Path: "configs/nginx/mixed-vhosts.conf", BlockIndex: 0,
+		Attrs: map[string]any{
+			"server_name": []string{"www.example.com", "*.cdn.example.com"},
+			"listen":      []string{"443"},
+			"port":        443,
+			"protocols":   []string{"TLSv1.2", "TLSv1.3"},
+		},
+	}
+	epClean.NodeID = "cfgendpoint:/corpus/configs/nginx/mixed-vhosts.conf#0"
+	epClean.AddProvenance(graph.Provenance{Source: graph.SourceConfig, Location: "configs/nginx/mixed-vhosts.conf", Line: 3, Detail: "config endpoint"})
+
+	epLegacy := &graph.ConfigEndpointNode{
+		Path: "configs/nginx/mixed-vhosts.conf", BlockIndex: 1,
+		Attrs: map[string]any{
+			"server_name": []string{"legacy.internal.example.com"},
+			"listen":      []string{"8443"},
+			"port":        8443,
+			"protocols":   []string{"TLSv1", "TLSv1.1", "TLSv1.2"},
+		},
+	}
+	epLegacy.NodeID = "cfgendpoint:/corpus/configs/nginx/mixed-vhosts.conf#1"
+	epLegacy.AddProvenance(graph.Provenance{Source: graph.SourceConfig, Location: "configs/nginx/mixed-vhosts.conf", Line: 11, Detail: "config endpoint"})
+
+	for _, n := range []graph.Node{leaf, expired, weak, sha1, key, endpoint, cfg, mixed, epClean, epLegacy} {
 		if _, err := g.UpsertNode(n); err != nil {
 			t.Fatalf("upsert %s: %v", n.ID(), err)
+		}
+	}
+	// stored_in edges make the two endpoints children of the mixed-vhosts file, so
+	// the report suppresses that file's file-level finding (filesWithEndpoints).
+	for _, epID := range []string{epClean.NodeID, epLegacy.NodeID} {
+		if _, err := g.AddEdge(graph.Edge{Type: graph.EdgeStoredIn, From: epID, To: mixedFileID,
+			Provenance: []graph.Provenance{{Source: graph.SourceConfig, Location: "configs/nginx/mixed-vhosts.conf", Detail: "config endpoint"}}}); err != nil {
+			t.Fatalf("add stored_in edge: %v", err)
 		}
 	}
 	return g

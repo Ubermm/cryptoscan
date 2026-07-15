@@ -102,6 +102,10 @@ func foldSnippet(format, disk, text string, ep *endpointResult, depth int, seen 
 type snippetScope struct {
 	protocols   []string
 	ciphers     []string
+	certRef     string
+	certLine    int
+	keyRef      string
+	keyLine     int
 	dhparam     string
 	ecdhCurve   string
 	clientCert  string
@@ -131,6 +135,16 @@ func scanNginxSnippet(text string) snippetScope {
 					sc.ciphers = appendUnique(sc.ciphers, c)
 				}
 			}
+		case "ssl_certificate":
+			if len(args) > 0 && sc.certRef == "" {
+				sc.certRef = args[0]
+				sc.certLine = s.line
+			}
+		case "ssl_certificate_key":
+			if len(args) > 0 && sc.keyRef == "" {
+				sc.keyRef = args[0]
+				sc.keyLine = s.line
+			}
 		case "ssl_dhparam":
 			if len(args) > 0 {
 				sc.dhparam = args[0]
@@ -157,12 +171,25 @@ func scanNginxSnippet(text string) snippetScope {
 }
 
 // mergeSnippetScope folds an nginx snippet's directives into ep's empty fields.
+// Cert/key refs (issue #6) fold in exactly like protocols/ciphers: an included
+// ssl_certificate is attributed back to the endpoint that pulled it in, but only
+// when the endpoint has none of its own (own/outer directives keep priority). This
+// applies across MULTIPLE includes — there is no first-include short-circuit; each
+// snippet fills whatever fields remain empty.
 func mergeSnippetScope(ep *endpointResult, sc snippetScope) {
 	if len(ep.protocols) == 0 {
 		ep.protocols = sc.protocols
 	}
 	if len(ep.ciphers) == 0 {
 		ep.ciphers = sc.ciphers
+	}
+	if ep.certRef() == "" && sc.certRef != "" {
+		ep.certRefs = appendUnique(ep.certRefs, sc.certRef)
+		ep.refs = append(ep.refs, pathRef{raw: sc.certRef, line: sc.certLine, kind: "ssl_certificate"})
+	}
+	if !ep.hasKeyRef && sc.keyRef != "" {
+		ep.hasKeyRef = true
+		ep.refs = append(ep.refs, pathRef{raw: sc.keyRef, line: sc.keyLine, kind: "ssl_certificate_key"})
 	}
 	if ep.dhparam == "" {
 		ep.dhparam = sc.dhparam
@@ -178,13 +205,24 @@ func mergeSnippetScope(ep *endpointResult, sc snippetScope) {
 	}
 }
 
-// mergeApacheSnippet folds an apache snippet scope into ep's empty fields.
+// mergeApacheSnippet folds an apache snippet scope into ep's empty fields,
+// including cert/key refs (issue #6) so an SSLCertificateFile split into an
+// Include is attributed back to the vhost that pulled it in. Own/outer directives
+// keep priority; multiple includes each fill whatever remains empty.
 func mergeApacheSnippet(ep *endpointResult, s *apacheScope) {
 	if len(ep.protocols) == 0 && s.protocolsSet {
 		ep.protocols = s.protocols.sorted()
 	}
 	if len(ep.ciphers) == 0 {
 		ep.ciphers = firstNonEmptyList(nil, s.ciphers)
+	}
+	if ep.certRef() == "" && s.certRef != "" {
+		ep.certRefs = appendUnique(ep.certRefs, s.certRef)
+		ep.refs = append(ep.refs, pathRef{raw: s.certRef, line: s.certLine, kind: "SSLCertificateFile"})
+	}
+	if !ep.hasKeyRef && s.keyRef != "" {
+		ep.hasKeyRef = true
+		ep.refs = append(ep.refs, pathRef{raw: s.keyRef, line: s.keyLine, kind: "SSLCertificateKeyFile"})
 	}
 	if ep.dhparam == "" {
 		ep.dhparam = s.dhparam

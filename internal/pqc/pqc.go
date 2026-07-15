@@ -25,6 +25,7 @@ package pqc
 
 import (
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/Ubermm/cryptoscan/internal/graph"
@@ -255,6 +256,11 @@ func Score(g *graph.Graph, now time.Time) Report {
 		return rep
 	}
 
+	// A ConfigFile with ConfigEndpoint children defers its legacy_protocol flag to
+	// those endpoints (per-endpoint attribution is more precise) — see
+	// filesWithEndpoints. Computed once, up front.
+	suppressed := filesWithEndpoints(g)
+
 	byFlag := map[string]int{}
 	byType := map[string]int{}
 	bySev := map[string]int{}
@@ -281,6 +287,11 @@ func Score(g *graph.Graph, now time.Time) Report {
 		}
 
 		flags := flagsForNode(n, now)
+		// Double-count suppression: a ConfigFile that has ConfigEndpoint children
+		// carries no file-level flag — the endpoints do (precise attribution).
+		if n.Type() == graph.NodeConfigFile && suppressed[n.ID()] {
+			flags = Flags{}
+		}
 		if !flags.Any() {
 			continue
 		}
@@ -349,11 +360,30 @@ func summarize(_ []NodeExposure) Summary {
 // relevant reports whether a node type participates in PQC scoring.
 func relevant(t graph.NodeType) bool {
 	switch t {
-	case graph.NodeCertificate, graph.NodeCertificateRequest, graph.NodeKey, graph.NodeEndpoint, graph.NodeConfigFile:
+	case graph.NodeCertificate, graph.NodeCertificateRequest, graph.NodeKey,
+		graph.NodeEndpoint, graph.NodeConfigFile, graph.NodeConfigEndpoint:
 		return true
 	default:
 		return false
 	}
+}
+
+// filesWithEndpoints returns the set of ConfigFile node IDs that have at least
+// one ConfigEndpoint child, discovered from the graph's `stored_in` edges
+// (cfgendpoint → file). These files' per-endpoint attribution is more precise
+// than a file-level flag, so Score suppresses the file-level legacy_protocol flag
+// for them (the endpoints carry it) — avoiding double-counting a single weak block
+// as both a file finding and an endpoint finding. A config file with NO endpoint
+// children (openssl.cnf, ssh_config, a bare include snippet) is absent from this
+// set and keeps its file-level flag.
+func filesWithEndpoints(g *graph.Graph) map[string]bool {
+	out := map[string]bool{}
+	for _, e := range g.Edges() {
+		if e.Type == graph.EdgeStoredIn && strings.HasPrefix(e.From, "cfgendpoint:") {
+			out[e.To] = true
+		}
+	}
+	return out
 }
 
 // toCounts turns a name→count map into a Name-sorted slice for deterministic

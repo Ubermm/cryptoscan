@@ -72,9 +72,34 @@ func labelFor(n graph.Node) string {
 			return v.Path
 		}
 		return v.ID()
+	case *graph.ConfigEndpointNode:
+		return configEndpointLabel(v)
 	default:
 		return n.ID()
 	}
+}
+
+// configEndpointLabel builds a human-readable identity for a ConfigEndpoint:
+// server_name:port when both are known (the auditor-facing "which vhost"), falling
+// back to the first listen/bind token, then to the file path with the block index
+// (path#idx) so the endpoint is always nameable even for a bind with no
+// server_name (haproxy). The port is appended to a server_name only when proven.
+func configEndpointLabel(e *graph.ConfigEndpointNode) string {
+	names := strListAttr(e.Attrs, "server_name")
+	port := intAttr(e.Attrs, "port")
+	if len(names) > 0 && names[0] != "" {
+		if port > 0 {
+			return names[0] + ":" + strconv.Itoa(port)
+		}
+		return names[0]
+	}
+	if listens := strListAttr(e.Attrs, "listen"); len(listens) > 0 && listens[0] != "" {
+		return listens[0]
+	}
+	if e.Path != "" {
+		return e.Path + "#" + strconv.Itoa(e.BlockIndex)
+	}
+	return e.ID()
 }
 
 // commonName extracts the CN component from an RFC 2253 / pkix DN string such as
