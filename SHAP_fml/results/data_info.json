@@ -1,0 +1,20 @@
+{
+  "rows_raw": 7043,
+  "sha256": "16320c9c1ec72448db59aa0a26a0b95401046bef5d02fd3aeb906448e3055e91",
+  "blank_TotalCharges": 11,
+  "blank_TotalCharges_tenure_values": [
+    0
+  ],
+  "duplicate_customerIDs": 0,
+  "n": 7043,
+  "churn_rate": 0.2653698707936959,
+  "n_train": 4225,
+  "n_val": 1409,
+  "n_test": 1409,
+  "churn_rate_train": 0.26532544378698225,
+  "churn_rate_val": 0.2654364797728886,
+  "churn_rate_test": 0.2654364797728886,
+  "index_overlap_train_test": 0,
+  "index_overlap_train_val": 0,
+  "duplicate_feature_rows_train_test": 10
+}

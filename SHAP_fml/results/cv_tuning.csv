@@ -1,0 +1,4 @@
+model,params,cv_auc_mean,cv_auc_sd,n_configs
+LR,"{""C"": 3.1622776601683795}",0.8384132703681442,0.014344179941188934,11
+RF,"{""max_depth"": 6, ""max_features"": 0.3, ""min_samples_leaf"": 20}",0.8396289261411282,0.011270435215546284,18
+XGB,"{""learning_rate"": 0.02, ""max_depth"": 2, ""n_estimators"": 400}",0.8407396560104485,0.010732162866238827,18

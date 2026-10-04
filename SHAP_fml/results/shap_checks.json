@@ -1,0 +1,12 @@
+{
+  "LR": {
+    "max_additivity_error": 2.6645352591003757e-15,
+    "max_err_vs_beta_x_minus_mean": 0.0
+  },
+  "RF": {
+    "max_additivity_error": 0.00540074887772124
+  },
+  "XGB": {
+    "max_additivity_error": 4.4263601122196405e-06
+  }
+}

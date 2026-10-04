@@ -1,0 +1,114 @@
+{
+  "LR_bootstrap": {
+    "test_auc_mean": 0.8545076080498074,
+    "test_auc_sd": 0.0021781356406779966,
+    "global_spearman_median": 0.8710526315789473,
+    "global_spearman_min": 0.5052631578947369,
+    "global_spearman_q25": 0.6298245614035087,
+    "kendalls_w": 0.7958070175438596,
+    "top3_jaccard_mean": 0.6047368421052632,
+    "top5_jaccard_mean": 0.8468671679197994,
+    "top1_counts": {
+      "tenure": 15,
+      "MonthlyCharges": 5
+    },
+    "local_spearman_median": 0.7604339796860573,
+    "local_spearman_q10": 0.6802003693444136,
+    "local_top1_agreement_mean": 0.7541,
+    "local_frac_customers_top1_unanimous": 0.288,
+    "local_sign_agreement_material": 0.9671791072420818,
+    "local_frac_material_with_any_sign_flip": 0.15817744026671607
+  },
+  "RF_bootstrap": {
+    "test_auc_mean": 0.8548355679557726,
+    "test_auc_sd": 0.0029456277397436072,
+    "global_spearman_median": 0.9385964912280702,
+    "global_spearman_min": 0.8263157894736841,
+    "global_spearman_q25": 0.9109649122807018,
+    "kendalls_w": 0.9338070175438596,
+    "top3_jaccard_mean": 0.95,
+    "top5_jaccard_mean": 0.6706766917293234,
+    "top1_counts": {
+      "Contract": 20
+    },
+    "local_spearman_median": 0.8746260387811633,
+    "local_spearman_q10": 0.8246879039704523,
+    "local_top1_agreement_mean": 0.8406999999999999,
+    "local_frac_customers_top1_unanimous": 0.386,
+    "local_sign_agreement_material": 0.9961257780639622,
+    "local_frac_material_with_any_sign_flip": 0.0300493668169135
+  },
+  "XGB_bootstrap": {
+    "test_auc_mean": 0.8610695833010411,
+    "test_auc_sd": 0.0026215167189282333,
+    "global_spearman_median": 0.857017543859649,
+    "global_spearman_min": 0.6608094563736316,
+    "global_spearman_q25": 0.8161482204318671,
+    "kendalls_w": 0.8572017543859649,
+    "top3_jaccard_mean": 0.7131578947368421,
+    "top5_jaccard_mean": 0.7378446115288221,
+    "top1_counts": {
+      "Contract": 17,
+      "tenure": 3
+    },
+    "local_spearman_median": 0.797170487308843,
+    "local_spearman_q10": 0.7431264623848707,
+    "local_top1_agreement_mean": 0.887,
+    "local_frac_customers_top1_unanimous": 0.462,
+    "local_sign_agreement_material": 0.9913903854123497,
+    "local_frac_material_with_any_sign_flip": 0.0955242436800663
+  },
+  "RF_seed": {
+    "test_auc_mean": 0.8589713632488568,
+    "test_auc_sd": 0.0005075090501404165,
+    "global_spearman_median": 0.9912280701754386,
+    "global_spearman_min": 0.9789473684210527,
+    "global_spearman_q25": 0.987719298245614,
+    "kendalls_w": 0.9912719298245614,
+    "top3_jaccard_mean": 1.0,
+    "top5_jaccard_mean": 0.7807017543859651,
+    "top1_counts": {
+      "Contract": 20
+    },
+    "local_spearman_median": 0.9805586334256695,
+    "local_spearman_q10": 0.9637867036011081,
+    "local_top1_agreement_mean": 0.9598,
+    "local_frac_customers_top1_unanimous": 0.782,
+    "local_sign_agreement_material": 0.9999890877346137,
+    "local_frac_material_with_any_sign_flip": 0.00021824530772588389
+  },
+  "XGB_seed": {
+    "test_auc_mean": 0.8655117672892608,
+    "test_auc_sd": 0.0004193780889915247,
+    "global_spearman_median": 0.9912280701754386,
+    "global_spearman_min": 0.9771929824561404,
+    "global_spearman_q25": 0.987719298245614,
+    "kendalls_w": 0.9909561403508772,
+    "top3_jaccard_mean": 0.7473684210526316,
+    "top5_jaccard_mean": 0.9368421052631579,
+    "top1_counts": {
+      "Contract": 20
+    },
+    "local_spearman_median": 0.9822437673130193,
+    "local_spearman_q10": 0.9728254847645429,
+    "local_top1_agreement_mean": 0.9789,
+    "local_frac_customers_top1_unanimous": 0.894,
+    "local_sign_agreement_material": 1.0,
+    "local_frac_material_with_any_sign_flip": 0.0
+  },
+  "cross_LR_vs_RF": {
+    "spearman_median": 0.7614035087719299,
+    "spearman_q25": 0.7298245614035088,
+    "spearman_q75": 0.8039473684210525
+  },
+  "cross_LR_vs_XGB": {
+    "spearman_median": 0.6754385964912282,
+    "spearman_q25": 0.6052631578947367,
+    "spearman_q75": 0.756578947368421
+  },
+  "cross_RF_vs_XGB": {
+    "spearman_median": 0.8560145973188606,
+    "spearman_q25": 0.8227294822954343,
+    "spearman_q75": 0.8875723288207464
+  }
+}

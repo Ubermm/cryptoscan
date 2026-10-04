@@ -1,0 +1,62 @@
+{
+  "r2_MonthlyCharges_on_service_dummies": 0.9988400165089509,
+  "churn_rate_by_MonthlyCharges_quartile": {
+    "(18.249, 35.5]": 0.11237230419977298,
+    "(35.5, 70.35]": 0.24575311438278596,
+    "(70.35, 89.85]": 0.3750711439954468,
+    "(89.85, 118.75]": 0.32878270762229805
+  },
+  "churn_rate_by_Contract": {
+    "Month-to-month": 0.4270967741935484,
+    "One year": 0.11269517990495587,
+    "Two year": 0.02831858407079646
+  },
+  "churn_rate_by_InternetService": {
+    "DSL": 0.1895910780669145,
+    "Fiber optic": 0.4189276485788114,
+    "No": 0.07404980340760157
+  },
+  "churn_rate_by_PaymentMethod": {
+    "Bank transfer (automatic)": 0.16709844559585493,
+    "Credit card (automatic)": 0.15243101182654403,
+    "Electronic check": 0.4528541226215645,
+    "Mailed check": 0.19106699751861042
+  },
+  "churn_rate_by_tenure_band": {
+    "(-1, 6]": 0.5293720459149224,
+    "(6, 12]": 0.3588652482269504,
+    "(12, 24]": 0.287109375,
+    "(24, 48]": 0.2038895859473024,
+    "(48, 72]": 0.09513175524787852
+  },
+  "lr_bootstrap_MonthlyCharges_importance": [
+    1.3595,
+    1.3188,
+    0.8534,
+    1.3406,
+    0.148,
+    0.1617,
+    0.7521,
+    0.8871,
+    0.8556,
+    0.9516,
+    0.2219,
+    0.2526,
+    1.2192,
+    0.2264,
+    0.9415,
+    0.1483,
+    1.3217,
+    0.6972,
+    0.9927,
+    1.2814
+  ],
+  "lr_bootstrap_rho_same_MC_regime_median": 0.9070175438596491,
+  "lr_bootstrap_rho_diff_MC_regime_median": 0.6640350877192982,
+  "lr_bootstrap_corr_MC_vs_service_importance": {
+    "StreamingMovies": 0.948482609977553,
+    "StreamingTV": 0.9558858292956622,
+    "InternetService": 0.9797833885539066,
+    "tenure": 0.05272383623131773
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "LR_MonthlyCharges": 1.0,
+  "LR_TotalCharges": 1.0,
+  "LR_tenure": 1.0000000000000002,
+  "RF_MonthlyCharges": 0.9458646616541352,
+  "RF_TotalCharges": 0.9894736842105262,
+  "RF_tenure": 0.9912280701754387,
+  "XGB_MonthlyCharges": 0.9845807390527174,
+  "XGB_TotalCharges": 0.9620158634441753,
+  "XGB_tenure": 0.9978061513440822
+}

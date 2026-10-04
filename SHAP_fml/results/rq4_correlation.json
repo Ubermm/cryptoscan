@@ -1,0 +1,53 @@
+{
+  "spearman_numeric": {
+    "tenure": {
+      "tenure": 1.0,
+      "MonthlyCharges": 0.2764,
+      "TotalCharges": 0.8897
+    },
+    "MonthlyCharges": {
+      "tenure": 0.2764,
+      "MonthlyCharges": 1.0,
+      "TotalCharges": 0.638
+    },
+    "TotalCharges": {
+      "tenure": 0.8897,
+      "MonthlyCharges": 0.638,
+      "TotalCharges": 1.0
+    }
+  },
+  "pearson_numeric": {
+    "tenure": {
+      "tenure": 1.0,
+      "MonthlyCharges": 0.2479,
+      "TotalCharges": 0.8262
+    },
+    "MonthlyCharges": {
+      "tenure": 0.2479,
+      "MonthlyCharges": 1.0,
+      "TotalCharges": 0.6512
+    },
+    "TotalCharges": {
+      "tenure": 0.8262,
+      "MonthlyCharges": 0.6512,
+      "TotalCharges": 1.0
+    }
+  },
+  "pearson_TotalCharges_vs_tenure_x_Monthly": 0.9995605537972279,
+  "no_internet_levels_identical_to_InternetService_No": true,
+  "no_phone_level_identical_to_PhoneService_No": true,
+  "RF_interventional_vs_path": {
+    "spearman": 0.9929824561403509,
+    "kendall": 0.9649122807017544,
+    "top5_feature_agreement": 0.8,
+    "top5_rank_agreement": 0.2,
+    "top1_same": true
+  },
+  "XGB_interventional_vs_path": {
+    "spearman": 0.9982456140350877,
+    "kendall": 0.9883040935672514,
+    "top5_feature_agreement": 1.0,
+    "top5_rank_agreement": 1.0,
+    "top1_same": true
+  }
+}

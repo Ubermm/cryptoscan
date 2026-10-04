@@ -1,0 +1,127 @@
+{
+  "LR": {
+    "shap_vs_perm": {
+      "spearman": 0.9684210526315788,
+      "kendall": 0.8596491228070176,
+      "top5_feature_agreement": 1.0,
+      "top5_rank_agreement": 0.6,
+      "top1_same": true
+    },
+    "shap_vs_drop": {
+      "spearman": 0.0456140350877193,
+      "kendall": 0.04093567251461988,
+      "top5_feature_agreement": 0.4,
+      "top5_rank_agreement": 0.0,
+      "top1_same": false
+    },
+    "perm_vs_drop": {
+      "spearman": 0.15263157894736842,
+      "kendall": 0.08771929824561403,
+      "top5_feature_agreement": 0.4,
+      "top5_rank_agreement": 0.0,
+      "top1_same": false
+    }
+  },
+  "RF": {
+    "shap_vs_perm": {
+      "spearman": 0.8350877192982457,
+      "kendall": 0.7076023391812866,
+      "top5_feature_agreement": 1.0,
+      "top5_rank_agreement": 0.6,
+      "top1_same": true
+    },
+    "shap_vs_drop": {
+      "spearman": 0.28421052631578947,
+      "kendall": 0.23976608187134502,
+      "top5_feature_agreement": 0.6,
+      "top5_rank_agreement": 0.2,
+      "top1_same": true
+    },
+    "perm_vs_drop": {
+      "spearman": 0.4456140350877193,
+      "kendall": 0.3684210526315789,
+      "top5_feature_agreement": 0.6,
+      "top5_rank_agreement": 0.4,
+      "top1_same": true
+    }
+  },
+  "XGB": {
+    "shap_vs_perm": {
+      "spearman": 0.9245614035087718,
+      "kendall": 0.8245614035087718,
+      "top5_feature_agreement": 1.0,
+      "top5_rank_agreement": 0.6,
+      "top1_same": false
+    },
+    "shap_vs_drop": {
+      "spearman": 0.30526315789473685,
+      "kendall": 0.23976608187134502,
+      "top5_feature_agreement": 0.6,
+      "top5_rank_agreement": 0.2,
+      "top1_same": true
+    },
+    "perm_vs_drop": {
+      "spearman": 0.4333333333333333,
+      "kendall": 0.3216374269005848,
+      "top5_feature_agreement": 0.6,
+      "top5_rank_agreement": 0.0,
+      "top1_same": false
+    }
+  },
+  "perm_not_distinguishable_from_zero": {
+    "LR": [
+      "gender",
+      "Partner",
+      "Dependents",
+      "PhoneService",
+      "OnlineBackup"
+    ],
+    "RF": [
+      "gender",
+      "Partner",
+      "Dependents",
+      "OnlineBackup",
+      "DeviceProtection",
+      "StreamingTV",
+      "StreamingMovies"
+    ],
+    "XGB": [
+      "gender",
+      "Partner",
+      "Dependents",
+      "OnlineBackup",
+      "DeviceProtection",
+      "StreamingTV",
+      "StreamingMovies"
+    ]
+  },
+  "drop_auc_negative_or_zero": {
+    "LR": [
+      "MonthlyCharges",
+      "gender",
+      "Partner",
+      "Dependents",
+      "MultipleLines",
+      "InternetService",
+      "OnlineBackup",
+      "DeviceProtection",
+      "StreamingTV",
+      "StreamingMovies"
+    ],
+    "RF": [
+      "MonthlyCharges",
+      "PhoneService",
+      "InternetService",
+      "OnlineBackup",
+      "DeviceProtection",
+      "StreamingMovies"
+    ],
+    "XGB": [
+      "MonthlyCharges",
+      "InternetService",
+      "OnlineBackup",
+      "DeviceProtection",
+      "StreamingMovies"
+    ]
+  }
+}
