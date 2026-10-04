@@ -1,0 +1,182 @@
+{
+  "empirical_c0_mean_risk_wellspec": 1.5621583968392225,
+  "empirical_c0_mean_risk_real_labels": 1.5675888329304695,
+  "empirical_c0_per_draw_wellspec_max": 1.6771872078892365,
+  "empirical_c0_per_draw_wellspec_q99": 1.386745704398757,
+  "frac_draws_pcr_best_wellspec": 0.19021739130434784,
+  "frac_draws_pcr_best_real_labels": 0.11666666666666667,
+  "median_ratio_best_other_wellspec": 1.0978400839083147,
+  "median_ratio_best_other_real_labels": 1.161573992119761,
+  "median_ratio_vs_ridge_by_signal": {
+    "head": 0.5787,
+    "isotropic": 1.2029,
+    "powerlaw": 1.1852,
+    "real": 1.1177,
+    "tail": 1.0001
+  },
+  "median_ratio_vs_GD_by_signal": {
+    "head": 0.8041,
+    "isotropic": 1.1586,
+    "powerlaw": 1.1787,
+    "real": 1.1082,
+    "tail": 0.9995
+  },
+  "pcr_beats_ridge_frac_by_signal": {
+    "head": 0.98,
+    "isotropic": 0.003,
+    "powerlaw": 0.033,
+    "real": 0.173,
+    "tail": 0.449
+  },
+  "gd_diverged_draw_frac_by_dataset": {
+    "communities": 0.0,
+    "mnist": 0.0,
+    "superconductivity": 0.0,
+    "telco_churn": 0.0,
+    "yearmsd": 0.0665
+  },
+  "cv_ratio_PCR_over_best_other_median": 1.3132707072218617,
+  "cv_ratio_PCR_over_best_other_max": 1.6768664970046716,
+  "cv_best_family_counts": {
+    "Ridge": 16,
+    "RidgePCR": 3,
+    "GD": 2,
+    "IterRidge2": 1
+  },
+  "bound_tracking": {
+    "PCR": {
+      "n_configs": 4485,
+      "risk_over_upper_log10_q05_q50_q95_max": [
+        -0.06267681868977938,
+        0.034420087469578156,
+        0.5715845645517225,
+        1.4835236174247342
+      ],
+      "risk_over_upper_band_width_decades_q05_q95": 0.6342613832415018,
+      "risk_over_lower_log10_q05_q50_q95_min": [
+        -6.779222089869655e-15,
+        0.05666106443921683,
+        0.5735821311234937,
+        -0.18679506867515422
+      ],
+      "by_dataset_upper_q05_q95": {
+        "communities": [
+          -0.04002486578352641,
+          1.1571000259336404
+        ],
+        "mnist": [
+          -0.09052855635608012,
+          0.3300613498816592
+        ],
+        "superconductivity": [
+          -0.029669315494388466,
+          0.5249495382840043
+        ],
+        "telco_churn": [
+          -0.04800050579308002,
+          0.2829787007051211
+        ],
+        "yearmsd": [
+          -0.06069875708208537,
+          1.243417313644147
+        ]
+      },
+      "c3_4": {
+        "n_configs": 3263,
+        "risk_over_upper_log10_q05_q50_q95_max": [
+          -0.07578191094919826,
+          0.014428035139729678,
+          0.16653641003467984,
+          0.6068405222010634
+        ],
+        "band_width_decades_q05_q95": 0.2423183209838781,
+        "frac_risk_more_than_3x_shape": 0.0006129328838492185
+      },
+      "frac_risk_more_than_3x_shape_c3_1": 0.07670011148272018
+    },
+    "GD": {
+      "n_configs": 3432,
+      "risk_over_upper_log10_q05_q50_q95_max": [
+        -0.2262625365060667,
+        0.05419910615016542,
+        1.4188523068048344,
+        2.4594896650044396
+      ],
+      "risk_over_upper_band_width_decades_q05_q95": 1.645114843310901,
+      "risk_over_lower_log10_q05_q50_q95_min": [
+        -0.2262625365060667,
+        0.05419910615016542,
+        1.4188523068048344,
+        -0.5762367290682046
+      ],
+      "by_dataset_upper_q05_q95": {
+        "communities": [
+          -0.1848860887435855,
+          2.2106277246881105
+        ],
+        "mnist": [
+          -0.20713539392892905,
+          1.535805634214321
+        ],
+        "superconductivity": [
+          -0.23004229673272608,
+          1.320803475305383
+        ],
+        "telco_churn": [
+          -0.2640653517418345,
+          0.2869023844708668
+        ],
+        "yearmsd": [
+          -0.23307512119932206,
+          1.4166789635213815
+        ]
+      },
+      "c3_4": {
+        "n_configs": 2246,
+        "risk_over_upper_log10_q05_q50_q95_max": [
+          -0.27194906969656324,
+          0.021112694529991878,
+          0.20844188103882846,
+          1.49504849995587
+        ],
+        "band_width_decades_q05_q95": 0.48039095073539173,
+        "frac_risk_more_than_3x_shape": 0.013802315227070348
+      },
+      "frac_risk_more_than_3x_shape_c3_1": 0.15238927738927738
+    }
+  },
+  "min_mean_ratio_PCR_over_filter": {
+    "Ridge": 0.19740000410923686,
+    "GD": 0.5257258343371534,
+    "GradFlow": 0.48468671060934304,
+    "IterRidge2": 0.3025234033312472,
+    "RidgePCR": 0.9273037410524612
+  },
+  "min_mean_ratio_PCR_over_filter_where": {
+    "Ridge": {
+      "dataset": "mnist",
+      "signal": "head",
+      "n": "5000"
+    },
+    "GD": {
+      "dataset": "mnist",
+      "signal": "head",
+      "n": "5000"
+    },
+    "GradFlow": {
+      "dataset": "mnist",
+      "signal": "head",
+      "n": "5000"
+    },
+    "IterRidge2": {
+      "dataset": "mnist",
+      "signal": "head",
+      "n": "5000"
+    },
+    "RidgePCR": {
+      "dataset": "mnist",
+      "signal": "head",
+      "n": "5000"
+    }
+  }
+}

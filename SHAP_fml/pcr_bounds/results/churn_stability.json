@@ -1,0 +1,118 @@
+{
+  "parent_logistic_regression": {
+    "global_spearman_median": 0.8710526315789473,
+    "global_spearman_min": 0.5052631578947369,
+    "kendalls_w": 0.7958070175438596,
+    "top1_counts": {
+      "tenure": 15,
+      "MonthlyCharges": 5
+    }
+  },
+  "OLS": {
+    "global_spearman_median": 0.8271929824561404,
+    "global_spearman_min": 0.32105263157894737,
+    "global_spearman_q25": 0.6057017543859649,
+    "top1_counts": {
+      "MonthlyCharges": 12,
+      "InternetService": 6,
+      "TotalCharges": 2
+    },
+    "MonthlyCharges_importance_min": 0.00033413161067098485,
+    "MonthlyCharges_importance_max": 0.3063288378287581,
+    "MonthlyCharges_max_over_min": 916.7909531624537,
+    "test_auc_mean": 0.8476340127618901,
+    "test_auc_sd": 0.0019067709074699533,
+    "chosen_hp_median": 23.0,
+    "chosen_hp_min": 23.0,
+    "chosen_hp_max": 23.0
+  },
+  "Ridge": {
+    "global_spearman_median": 0.8429824561403508,
+    "global_spearman_min": 0.36315789473684207,
+    "global_spearman_q25": 0.6087719298245614,
+    "top1_counts": {
+      "TotalCharges": 9,
+      "MonthlyCharges": 5,
+      "tenure": 4,
+      "InternetService": 2
+    },
+    "MonthlyCharges_importance_min": 0.03667021657634995,
+    "MonthlyCharges_importance_max": 0.28430704331446216,
+    "MonthlyCharges_max_over_min": 7.753077834228632,
+    "test_auc_mean": 0.849657314836343,
+    "test_auc_sd": 0.0019725835576387307,
+    "chosen_hp_median": 0.028307666252885492,
+    "chosen_hp_min": 2.665476349251608e-05,
+    "chosen_hp_max": 0.05351951460917286
+  },
+  "PCR": {
+    "global_spearman_median": 0.7263157894736842,
+    "global_spearman_min": 0.4122807017543859,
+    "global_spearman_q25": 0.5653508771929825,
+    "top1_counts": {
+      "TotalCharges": 10,
+      "MonthlyCharges": 7,
+      "tenure": 3
+    },
+    "MonthlyCharges_importance_min": 0.04169729525194626,
+    "MonthlyCharges_importance_max": 0.3063288378287581,
+    "MonthlyCharges_max_over_min": 7.346491804272603,
+    "test_auc_mean": 0.8481377715776695,
+    "test_auc_sd": 0.0018266859916864257,
+    "chosen_hp_median": 22.0,
+    "chosen_hp_min": 20.0,
+    "chosen_hp_max": 23.0
+  },
+  "GD": {
+    "global_spearman_median": 0.8605263157894736,
+    "global_spearman_min": 0.3140350877192983,
+    "global_spearman_q25": 0.6092105263157894,
+    "top1_counts": {
+      "tenure": 12,
+      "MonthlyCharges": 5,
+      "TotalCharges": 3
+    },
+    "MonthlyCharges_importance_min": 0.03859348898828209,
+    "MonthlyCharges_importance_max": 0.2896839389212819,
+    "MonthlyCharges_max_over_min": 7.506031367343774,
+    "test_auc_mean": 0.8500868015190266,
+    "test_auc_sd": 0.002407923736278714,
+    "chosen_hp_median": 53.5,
+    "chosen_hp_min": 35.0,
+    "chosen_hp_max": 42170.0
+  },
+  "PCR_k20": {
+    "global_spearman_median": 0.8807017543859648,
+    "global_spearman_min": 0.7070175438596492,
+    "global_spearman_q25": 0.8421052631578947,
+    "top1_counts": {
+      "tenure": 20
+    },
+    "MonthlyCharges_importance_min": 0.036115007399296385,
+    "MonthlyCharges_importance_max": 0.046615206948653294,
+    "MonthlyCharges_max_over_min": 1.2907433863508355,
+    "test_auc_mean": 0.8504183781549509,
+    "test_auc_sd": 0.0020951178437894867,
+    "chosen_hp_median": 20.0,
+    "chosen_hp_min": 20.0,
+    "chosen_hp_max": 20.0
+  },
+  "PCR_k22": {
+    "global_spearman_median": 0.8675438596491227,
+    "global_spearman_min": 0.6403508771929824,
+    "global_spearman_q25": 0.8263157894736841,
+    "top1_counts": {
+      "TotalCharges": 18,
+      "InternetService": 1,
+      "tenure": 1
+    },
+    "MonthlyCharges_importance_min": 0.044268257786342906,
+    "MonthlyCharges_importance_max": 0.06633000961933776,
+    "MonthlyCharges_max_over_min": 1.4983650348173645,
+    "test_auc_mean": 0.848574750058126,
+    "test_auc_sd": 0.0019670147887357794,
+    "chosen_hp_median": 22.0,
+    "chosen_hp_min": 22.0,
+    "chosen_hp_max": 22.0
+  }
+}

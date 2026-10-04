@@ -328,6 +328,14 @@ The always-stay baseline reaches 73.5% accuracy, which is why we do not report a
 - **Post-hoc analyses are labelled.** `src/extra_checks.py` (the R² of MonthlyCharges on services, and the LR bimodality diagnosis) was written *after* inspecting the main results, to explain a pattern in them. Treat it as exploratory, not as pre-planned confirmatory analysis.
 - **Ten test rows have feature vectors identical to training rows.** They are distinct customers with common profiles, not leakage, but they make test performance very slightly optimistic.
 
+## 6b. Extension: PCR dominance theory on real data
+
+[`pcr_bounds/`](pcr_bounds/README.md) tests the new instance-wise bounds of Kim, Fu, Bartlett, Lee & Wu (2026, arXiv:2609.39440), "PCR dominates all monotone spectral filters", on five real designs, including this churn data.
+- **Dominance holds:** oracle PCR is never more than about 1.6× worse than ridge, GD or any other monotone filter.
+- **The bounds are tight:** inside the theorem's regime, their shapes predict the true risk within 0.84–1.47× for 90% of configurations.
+- **The advantage disappears under CV:** cross-validated PCR loses to ridge on every real-label setting.
+- **Bridge to this study:** with k fixed, PCR gives the most stable churn explanations of any model tested (worst-case ρ 0.71 vs 0.51). Choosing k by CV makes it the least stable, and k = 20 and k = 22 name different top drivers. This reinforces §4.5: report importance for the billing *group*.
+
 ## 7. Reproducing
 
 ```bash

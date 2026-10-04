@@ -1,0 +1,12 @@
+[    0.5s] superconductivity: 42 tasks, d=81, N=21263
+[   13.3s] superconductivity: done
+[   13.3s] communities: 18 tasks, d=99, N=1994
+[   16.6s] communities: done
+[   31.5s] yearmsd: 42 tasks, d=90, N=515345
+[   48.2s] yearmsd: done
+[   51.9s] mnist: 28 tasks, d=719, N=70000
+[  110.7s] mnist: done
+[  112.1s] telco_churn: 30 tasks, d=46, N=7043
+[  114.7s] telco_churn: done
+[  117.0s] all done
+EXIT 0
